@@ -1,42 +1,34 @@
-ZADÁNÍ:
-Úkolem je vytvoření serveru komunikujícího prostřednictvím protokolu HTTP, který bude poskytovat různé informace o systému. Server bude naslouchat na zadaném portu a podle url bude vracet požadované informace. Server musí správně zpracovávat hlavičky HTTP a vytvářet správné HTTP odpovědi. Typ odpovědi může být text/plain nebo application/json. Pro výběr typu odpovědi by měl server přihlížet k hlavičce Accept v dotazu. Komunikace se serverem by měla být možná jak pomocí webového prohlížeče, tak nástroji typu wget a curl.
+ZADANÍ
 
-Server bude spustitelný pomocí Makefile příkazem:
+Úkolem je vytvořit program - klienta rozhraní OpenWeatherMap, který bude schopen prostřednictvím HTTP dotazů získávat vybrané informace z datového zdroje. Pro přístup je nutná bezplatná registrace a získání klíče, který se používá v dotazech pro autentizaci. Způsob používání OpenWatherMap API si nastudujte z on-line zdroje (odkaz níže).
 
-make run port=12345
+Klient se bude spouštět pomocí souboru Makefile následujícím způsobem:
 
-kde 12345 je číslo portu na kterém server naslouchá. Zjistěte si, jak se používají takto definované argumenty v Makefile. Server bude možné ukončit pomocí CTRL+C. Server bude umět zpracovat následující tři typy dotazů, které jsou na server zaslané příkazem GET:
-
-
-1. http://servername:12345/hostname
-Vrací síťové jméno počítače včetně domény, například:
-
-merlin.fit.vutbr.cz
+make run api_key=<API klíč> city=<Město>
 
 
-2. http://servername:12345/cpu-name
-Vrací informaci o procesoru, například:
+Výsledkem bude informace o aktuálním počasí a následující informace: popis počasí, teplota, vlhkost, tlak, rychlost a směr větru. Používejte metrické jednotky při uvádění všech hodnot.
 
-Intel(R) Xeon(R) CPU E5-2640 0 @ 2.50GHz
+Pro správnou komunikaci je nutné vytvořit korektní HTTP dotaz. Jestliže si nejste jisti podívejte se na správnou komunikaci jejím odchycením a zobrazením ve Wiresharku. 
 
-
-3. http://servername:12345/load
-Vrací aktuální informace o zátěži. Tento vyžaduje výpočet z hodnot uvedených v soubor /proc/stat (viz odkaz níže). Výsledek je například:
-
-65%
+V případě, že budete zjišťovat jak vypadá odpověď nezapomeňte dát celé URL do uvozovek (jistě víte proč):
+curl "http://api.openweathermap.org/data/2.5/weather?q=London,uk&APPID=b498767252de12f92504d2cca9c3fdc1"
 
 
+PŘÍKLAD
 
-Poslední příkaz (load) bude také mít nepovinnou volbu refresh=X, která zajistí, že prohlížeč si bude obnovovat informaci každých X vteřin. Například:
-http://servername:12345/load?refresh=5
+$ make run api_key=b498767252de12f92574d288a9c4fdc2 city=Prague
+
+Prague
+overcast clouds
+temp:28.5°C
+humidity:89%
+preassure:1013 hPa
+wind-speed: 7.31km/h
+wind-deg: 187
 
 
-
-Potřebné informace pro odpověď lze v systému získat pomocí některých příkazů systému (uname, lscpu) a/nebo ze souborů v adresáři /proc. 
-
-
-
-Pro implementaci serveru je nutné využít knihovny soketů. Není přípustné využívat knihovny pro zpracování HTTP a podobně - cílem je lightweight server, který má minimum závislostí. 
+Pro implementaci klienta je nutné využít knihovny soketů. Není přípustné využívat knihovny pro zpracování HTTP a podobně - cílem je lightweight klient, který má minimum závislostí. 
 
 
 HODNOCENÍ
@@ -47,13 +39,7 @@ množství závislostí na dalších knihovnách (rozumný balanc mezi tím co s
 
 Dále se pak hodnotí dokumentace (1/4) hodnocení.
 
-TESTOVÁNÍ
-Vyzkoušejte si, zda Vám fungují alespoň základní varianty, tedy:
 
-curl http://localhost:12345/hostname
-curl http://localhost:12345/cpu-name
-curl http://localhost:12345/load
-curl http://localhost:12345/load?refresh=5
 
 DOPORUČENÍ
 Zadání nepostihuje ani nemůže postihovat veškeré možnosti, které Vás napadnou při řešení nabo mohou nastat. V takovém případě je nutné navrhnou přijatelné a logické řešení. V případě, že si řešením nejste jisti se optejte prostřednictvím fóra.
@@ -61,5 +47,4 @@ Zadání nepostihuje ani nemůže postihovat veškeré možnosti, které Vás na
 
 ODKAZY
 Protokol HTTP RFC7231 - https://tools.ietf.org/html/rfc7231
-HTTP pro vývojáře: https://developer.mozilla.org/en-US/docs/Web/HTTP
-Výpočet CPU Load: https://stackoverflow.com/questions/23367857/accurate-calculation-of-cpu-usage-given-in-percentage-in-linux
+Dokumentace OpenWeatherMap API: https://openweathermap.org/current
