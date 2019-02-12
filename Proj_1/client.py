@@ -51,7 +51,6 @@ def main():
     
     # parse the weather
     weather = json.loads(data[len(data) - 1])
-    print(weather)
     
     # get the return code
     try:
@@ -88,42 +87,47 @@ def main():
         main_weather = weather['weather'][0]['main']
         sys.stdout.write("Weather: " + str(main_weather) + "\n")
     except:
-        pass
+        sys.stdout.write("Weather: n/a\n")
 
     # temperature
     try:
         temperature = weather['main']['temp']
         sys.stdout.write("Temperature: " + str(temperature) + " degrees Celcius\n")
     except:
-        pass
+        sys.stdout.write("Temperature: n/a\n")
 
     # humidity
     try:
         humidity = weather['main']['humidity']
         sys.stdout.write("Humidity: " + str(humidity) + "%\n")
     except:
-        pass
+        sys.stdout.write("Humidity: n/a\n")
 
     # pressure
     try:
         pressure = weather['main']['pressure']
         sys.stdout.write("Pressure: " + str(pressure) + " hPa\n")
     except:
-        pass
+        sys.stdout.write("Pressure: n/a\n")
 
     # wind speed
     try:
         wind_speed = weather['wind']['speed']
         sys.stdout.write("Wind speed: " + str(wind_speed) + " m/s\n")
     except:
-        pass
+        sys.stdout.write("Wind speed: n/a m/s\n")
+        sys.stdout.write("Wind degree: n/a\n")
+        sys.exit() 
 
-    # wind-deg
-    try:
-        wind_degree = weather['wind']['deg']
-        sys.stdout.write("Wind degree: " + str(wind_degree) + "\n")
-    except:
-        pass
+    # wind degree
+    if(wind_speed == None or wind_speed == 0):
+        sys.stdout.write("Wind degree: n/a\n")
+    else:
+        try:
+            wind_degree = weather['wind']['deg']
+            sys.stdout.write("Wind degree: " + str(wind_degree) + "\n")
+        except:
+            sys.stdout.write("Wind degree: n/a\n")
 
 
 if __name__ == '__main__':
