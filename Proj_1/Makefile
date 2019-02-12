@@ -1,3 +1,3 @@
 run:
-	python client.py --api_key $(api_key) --city $(city)
+	python client.py --api_key ${api_key} --city "${city}"
 	

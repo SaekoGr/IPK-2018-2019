@@ -29,30 +29,46 @@ def main():
     request = create_request(city, api_key)
 
     # create socket
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((HOST, PORT))
-    s.sendall(request)
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    except socket.error:
+        sys.stderr.write("Failed to create socket\n")
+        sys.exit()
+
+    try:
+        s.connect((HOST, PORT))
+    except:
+        sys.stderr.write("Failed to connect\n")
+        sys.exit()
+
+    try:
+        s.sendall(request)
+    except socket.error:
+        sys.stderr.write("HTTP request failed")
+        sys.exit()
+
     data = (s.recv(4096)).split("\n")
     
     # parse the weather
     weather = json.loads(data[len(data) - 1])
+    print(weather)
     
     # get the return code
     try:
         return_code = weather['cod']
     except:
-        return_code = 400
+        return_code = 403
 
     # managing return codes
-    if(return_code == 200):
+    if(int(return_code) == 200):
         pass
-    elif(return_code == 404):
+    elif(int(return_code) == 404):
         sys.stderr.write("404: " + city + " not found\n")
         sys.exit()
-    elif(return_code == 401):
+    elif(int(return_code) == 401):
         sys.stderr.write("401: Invalid API key: " + api_key + "\n")
         sys.exit()
-    elif(return_code == 400):
+    elif(int(return_code) == 400):
         sys.stderr.write("400: Bad request\n")
         sys.exit()
     else:
@@ -60,33 +76,54 @@ def main():
         sys.exit()
     
     # country and city    
-    country = weather['sys']['country']
-    city = weather['name']
-    sys.stdout.write("City: " + city + ", " + country + "\n")
+    try:
+        country = weather['sys']['country']
+        city = weather['name']
+        sys.stdout.write("City: " + city + ", " + country + "\n")
+    except:
+        pass
 
     # weather
-    main_weather = weather['weather'][0]['main']
-    sys.stdout.write("Weather: " + str(main_weather) + "\n")
+    try:
+        main_weather = weather['weather'][0]['main']
+        sys.stdout.write("Weather: " + str(main_weather) + "\n")
+    except:
+        pass
 
     # temperature
-    temperature = weather['main']['temp']
-    sys.stdout.write("Temperature: " + str(temperature) + " degrees Celcius\n")
+    try:
+        temperature = weather['main']['temp']
+        sys.stdout.write("Temperature: " + str(temperature) + " degrees Celcius\n")
+    except:
+        pass
 
     # humidity
-    humidity = weather['main']['humidity']
-    sys.stdout.write("Humidity: " + str(humidity) + "%\n")
+    try:
+        humidity = weather['main']['humidity']
+        sys.stdout.write("Humidity: " + str(humidity) + "%\n")
+    except:
+        pass
 
     # pressure
-    pressure = weather['main']['pressure']
-    sys.stdout.write("Pressure: " + str(pressure) + " hPa\n")
+    try:
+        pressure = weather['main']['pressure']
+        sys.stdout.write("Pressure: " + str(pressure) + " hPa\n")
+    except:
+        pass
 
     # wind speed
-    wind_speed = weather['wind']['speed']
-    sys.stdout.write("Wind speed: " + str(wind_speed) + " m/s\n")
+    try:
+        wind_speed = weather['wind']['speed']
+        sys.stdout.write("Wind speed: " + str(wind_speed) + " m/s\n")
+    except:
+        pass
 
     # wind-deg
-    wind_degree = weather['wind']['deg']
-    sys.stdout.write("Wind degree: " + str(wind_degree) + "\n")
+    try:
+        wind_degree = weather['wind']['deg']
+        sys.stdout.write("Wind degree: " + str(wind_degree) + "\n")
+    except:
+        pass
 
 
 if __name__ == '__main__':
