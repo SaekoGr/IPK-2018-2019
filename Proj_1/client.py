@@ -113,9 +113,10 @@ def main():
     # wind speed
     try:
         wind_speed = weather['wind']['speed']
-        sys.stdout.write("Wind speed: " + str(wind_speed) + " m/s\n")
+        wind_speed = int(wind_speed)*3.6
+        sys.stdout.write("Wind speed: " + str(wind_speed) + " km/h\n")
     except:
-        sys.stdout.write("Wind speed: n/a m/s\n")
+        sys.stdout.write("Wind speed: n/a km/h\n")
         sys.stdout.write("Wind degree: n/a\n")
         sys.exit() 
 

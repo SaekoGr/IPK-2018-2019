@@ -4,17 +4,61 @@
 \usepackage{times}
 \usepackage[utf8]{inputenc}
 \usepackage{verbatim}
+\usepackage{amssymb}
+\usepackage{multirow}
+\usepackage[czech, ruled, noline,  linesnumbered, longend]{algorithm2e}
+\usepackage{algpseudocode}
 \usepackage[czech]{babel}
+\usepackage{graphics}
+\usepackage{pdflscape}
+\usepackage{hyperref}
+\urlstyle{rm}
 
 \begin{document}
+\begin{titlepage}
 \begin{center}
-\Large \textbf{IPK Projekt č. 1: Klient pre OpenWeatherMap API (varianta č. 2)}
-\textbf{Dokumentácia}
+\Huge
+\textsc{Vysoké učení technické v~Brně}\\
+\huge
+\textsc{Fakulta informačních technologií}\\
+\vspace{\stretch{0.382}}
+\LARGE 1. projekt z IPK: Klient pre OpenWeatherMap API\\
+\Huge Dokumentácia
+\vspace{\stretch{0.618}}
 \end{center}
+{\Large 17. března 2018 \hfill
+Sabína Gregušová}
+\end{titlepage}
 
-\section{Zadanie}
-Cieľom tejto úlohy bolo vytvoriť klienta rozhrania OpenWeatherMap bez použitia knižnice na spracovávanie HTTP.
-\section{Moje riešenie}
-Moje riešenie sa nachádza v súbore \texttt{client.py} v jazyku \texttt{Python}.
-\section{Príklady spustenia}
+\section{Úvod}
+
+Mojou úlohou bolo vytvoriť klienta pre rozhranie OpenWeatherMap, ktorý bude prostredníctvom dotazov HTTP získavať určité informácie bez použitia knižnice pre spracovávanie protokolu HTTP.
+ \section{Riešenie}
+Na riešenie tohto projektu som si vybrala jazyk \texttt{Python}. Celkovo som v projekte použila 3 knižnice, a to:
+\begin{itemize}
+\item \texttt{socket} - vytvorenie socketu a pripojenie k API OpenWeatherMap
+\item \texttt{sys} - výpis údajov na \texttt{STDOUT}
+\item \texttt{json} - spracovanie dát vo formáte \texttt{JSON}
+\end{itemize}
+
+Skript sa spúšta pomocou príkazu \texttt{make run}, a skontroluje si počet vstupných argumentov. Ak je zadaný správny počet argumentov, skript si uloží názov mesta a kľúv pre api, vytvorí \texttt{socket} s flagmi \texttt{AF\_INET} a \texttt{SOCK\_STREAM}. Pomocou funkcie \texttt{connect} sa \texttt{socket} pripojí k rozhraniu OpenWeatherMap a výsledky všetkých týchto príkazov je patrične kontrolované a ošetrené a v prípade chyby sa daný problém vypíše na \texttt{STDERR}.
+
+Po prebratí dát sú dáta parsované pomocou knižnice \texttt{json} a ako prvý je kontrolovaný návratový kód. Návratový kód 200 značí, že dáta boli korektne nájdené. Skript ďalej rozlišuje ešte návratový kódy: 404 - mesto nebolo nájdené alebo neexistuje; 401 - kľúč pre API je nesprávny alebo neplatný, 400 - zlý request a potom ostatné. Pri rozlíšených chybných kódoch je vypísané aj adekvátne hlásenie o danej chybe, pri iných návratových kódoch ale konkrétne informácie už nie sú.
+
+Ak je návratový kód správny, prejde sa k výberu najdôležitejších údajov, konkrétne to je mesto, krajina, počasie, teplota, vlhkosť, tlak, rýchlosť vetra a jeho stupeň. Ak je nejaký údaj nedostupný, tak je jeho hodnota označená ako \texttt{n/a}.
+
+\section{Príklad spustenia}
+\textbf{Vstup:}\\
+make run api\_key=7d426f17fe39dcf21d359c1a60851baf city=Brno\\
+
+\noindent
+\textbf{Výstup:}\\
+City: Brno, CZ\\
+Weather: Clouds\\
+Temperature: 5.93 degrees Celcius\\
+Humidity: 72\%\\
+Pressure: 1033 hPa\\
+Wind speed: 18.0 km/h\\
+Wind degree: 300\\
+
 \end{document}
