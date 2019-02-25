@@ -26,7 +26,7 @@
 \Huge Dokumentácia
 \vspace{\stretch{0.618}}
 \end{center}
-{\Large 17. března 2018 \hfill
+{\Large 17. marca 2018 \hfill
 Sabína Gregušová}
 \end{titlepage}
 
@@ -41,7 +41,7 @@ Na riešenie tohto projektu som si vybrala jazyk \texttt{Python}. Celkovo som v 
 \item \texttt{json} - spracovanie dát vo formáte \texttt{JSON}
 \end{itemize}
 
-Skript sa spúšta pomocou príkazu \texttt{make run}, a skontroluje si počet vstupných argumentov. Ak je zadaný správny počet argumentov, skript si uloží názov mesta a kľúv pre api, vytvorí \texttt{socket} s flagmi \texttt{AF\_INET} a \texttt{SOCK\_STREAM}. Pomocou funkcie \texttt{connect} sa \texttt{socket} pripojí k rozhraniu OpenWeatherMap a výsledky všetkých týchto príkazov je patrične kontrolované a ošetrené a v prípade chyby sa daný problém vypíše na \texttt{STDERR}.
+Skript sa spúšta pomocou príkazu \texttt{make run}, a skontroluje si počet vstupných argumentov. Ak je zadaný správny počet argumentov, skript si uloží názov mesta a kľúč pre api, vytvorí \texttt{socket} s flagmi \texttt{AF\_INET} a \texttt{SOCK\_STREAM}. Pomocou funkcie \texttt{connect} sa \texttt{socket} pripojí k rozhraniu OpenWeatherMap a výsledky všetkých týchto príkazov je patrične kontrolované a ošetrené a v prípade chyby sa daný problém vypíše na \texttt{STDERR}.
 
 Po prebratí dát sú dáta parsované pomocou knižnice \texttt{json} a ako prvý je kontrolovaný návratový kód. Návratový kód 200 značí, že dáta boli korektne nájdené. Skript ďalej rozlišuje ešte návratový kódy: 404 - mesto nebolo nájdené alebo neexistuje; 401 - kľúč pre API je nesprávny alebo neplatný, 400 - zlý request a potom ostatné. Pri rozlíšených chybných kódoch je vypísané aj adekvátne hlásenie o danej chybe, pri iných návratových kódoch ale konkrétne informácie už nie sú.
 

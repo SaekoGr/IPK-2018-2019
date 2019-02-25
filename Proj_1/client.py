@@ -18,12 +18,19 @@ def create_request(city, api_key):
 
 def main():
     # parsing the input arguments
-    if(len(sys.argv) != 5):
+    if(len(sys.argv) != 3):
         sys.stderr.write("Unsufficient number of arguments\n")
-        raise ValueError
-    else:
-        api_key = sys.argv[2]
-        city = sys.argv[4]
+        sys.exit()
+
+    try:
+        api_key = sys.argv[1]
+    except:
+        sys.exit()
+
+    try:
+        city = sys.argv[2]
+    except:
+        sys.exit()
 
     # create request for http
     request = create_request(city, api_key)
