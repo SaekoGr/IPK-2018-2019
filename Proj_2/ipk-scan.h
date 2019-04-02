@@ -1,0 +1,4 @@
+#define NO_PARAMETERS 0
+#define TOO_MANY_PARAMETERS 6
+#define ARG_OK 0
+#define ARG_INVALID 1
