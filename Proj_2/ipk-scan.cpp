@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+
 #include "ipk-scan.h"
 
 /**
@@ -16,13 +17,17 @@ struct Ports{
     std::string ports;
     bool has_range;
     bool multiple_values;
+    int from = 0;
+    int to = 0;
 };
 
 /**
  * @brief Class that parses input arguments and stores the necessary information for later use
  */
 class InputArgument{
-    public: 
+    public:
+        bool pt_tcp_flag = false;
+        bool pu_udp_flag = false; 
         std::string domain_name;
         std::string ip_address;
         Ports TCP_ports;
@@ -47,9 +52,14 @@ class InputArgument{
             // iterate through all arguments
             while(counter < argc){
                 if(strcmp(argv[counter],"-pt") == 0){
+                    this->pt_tcp_flag = true;
                     counter++;
                     if(counter < argc){
                         this->check_range(&TCP_ports, argv[counter]);
+                        if(TCP_ports.has_range){
+                            TCP_ports.from = this->border_from(TCP_ports.ports);
+                            TCP_ports.to = this->border_to(TCP_ports.ports);
+                        }
                     }
                     else{   // ERROR
                         std::cerr <<"Invalid input arguments"<< std::endl;
@@ -57,9 +67,14 @@ class InputArgument{
                     }
                 }
                 else if(strcmp(argv[counter],"-pu") == 0){
+                    this->pu_udp_flag = true;
                     counter++;
                     if(counter < argc){
                         this->check_range(&UDP_ports, argv[counter]);
+                        if(UDP_ports.has_range){
+                            UDP_ports.from = this->border_from(UDP_ports.ports);
+                            UDP_ports.to = this->border_to(UDP_ports.ports);
+                        }
                     }
                     else{   // ERROR
                         std::cerr <<"Invalid input arguments"<< std::endl;
@@ -76,13 +91,80 @@ class InputArgument{
                 counter++;
             }
 
-            //this->debug();
+            this->debug();
         }
+
 
     /**
      * @brief
      */
     private:
+
+
+        /**
+         * 
+         */
+        int border_from(std::string port_list){
+            std::string from;
+
+            // get from value
+            for(unsigned int i = 0; i < (sizeof port_list - 1); i++){
+                if(port_list[i] == '-'){
+                    break;
+                }
+                from = from + port_list[i];
+            }
+            return std::stoi(from);
+
+            // cannot be empty
+            if(from.empty()){
+
+            }
+            // cannot be negative
+            if(std::stoi(from) < 0){
+
+            }
+
+            return std::stoi(from);
+        }
+
+        /**
+         * 
+         */
+        int border_to(std::string port_list){
+            std::string to;
+
+            // get to value
+            bool now = false;
+            for(unsigned int i = 0; i < (sizeof port_list - 1); i++){
+                if(port_list[i] == '\0'){
+                    break;
+                }
+                if(now){
+                    to = to + port_list[i];
+                }
+
+                if(port_list[i] == '-'){
+                    now = true;
+                }    
+            }
+
+            // cannot be empty
+            if(to.empty()){
+
+            }
+            // cannot be negative
+            if(std::stoi(to) < 0){
+
+            }
+
+            return std::stoi(to);
+
+        }
+
+        /**
+         * 
+         */
         void check_range(struct Ports* current_ports, char* port_list){
             current_ports->ports.assign(port_list);
 
@@ -195,14 +277,43 @@ void write_domain_header(std::string domain_name, std::string ip_address){
  * 
  */
 void check_TCP(struct Ports TCP_ports){
-    ;
+    if(TCP_ports.has_range){    // look at range
+        // iterate throught the range
+        for(int counter = TCP_ports.from; counter <= TCP_ports.to; counter++){
+            std::cout << counter << std::endl;
+        }
+    }
+    else{                       // look at simple list of values
+        if(TCP_ports.multiple_values){  // look at multiple values
+
+        }
+        else{                   // only one value
+
+        }
+    }
 }
 
 /**
  * 
  */
 void check_UDP(struct Ports UDP_ports){
-    ;
+    std::string range_del = "-";
+    std::string multiple_del = ",";
+
+    if(UDP_ports.has_range){    // look at range
+        // iterate through the range
+        for(int counter = UDP_ports.from; counter <= UDP_ports.to; counter++){
+            std::cout << counter << std::endl;
+        }
+    }
+    else{                       // look at simple list of values
+        if(UDP_ports.multiple_values){  // look at multiple values
+
+        }
+        else{                   // only one value
+
+        }
+    }
 }
 
 /**
@@ -213,8 +324,12 @@ int main(int argc, char *argv[]){
     arguments.parse(argc, argv);
     
     write_domain_header(arguments.domain_name, arguments.ip_address);
-    check_TCP(arguments.TCP_ports);
-    check_UDP(arguments.UDP_ports);
-
+    if(arguments.pt_tcp_flag){
+        check_TCP(arguments.TCP_ports);
+    }
+    if(arguments.pu_udp_flag){
+        check_UDP(arguments.UDP_ports);
+    }
+    
     exit(OK);
 }
