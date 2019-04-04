@@ -10,16 +10,6 @@
 
 #include "ipk-scan.h"
 
-/**
- * structure Ports for input arguments
- */
-struct Ports{
-    std::string ports;
-    bool has_range;
-    bool multiple_values;
-    int from = 0;
-    int to = 0;
-};
 
 /**
  * @brief Class that parses input arguments and stores the necessary information for later use
@@ -99,7 +89,6 @@ class InputArgument{
      * @brief
      */
     private:
-
 
         /**
          * 
@@ -267,6 +256,65 @@ class InputArgument{
 /**
  * 
  */
+void DisposeList(tList *L){
+    L->Last = NULL;
+    while(L->First != NULL){
+        tElemPtr next_element = L->First->next;
+        tElemPtr to_delete = L->First;
+
+        free(to_delete);
+        L->First = next_element;
+    }
+}
+
+/**
+ * 
+ */
+void InitList(tList *L, std::string value_list){
+    L->First = NULL;
+    L->Last = NULL;
+    std::string help_string = "";
+    bool first = true;
+
+        for(unsigned i = 0; i < (sizeof value_list - 1); i++){
+            if(value_list[i] == ',' || value_list[i] == '\0'){
+                tElemPtr tmp_struct_pointer = (struct tElem*) malloc(sizeof(struct tElem));
+                if(tmp_struct_pointer == NULL){ // MALLOC ERROR
+                    DisposeList(L);
+                    exit(INTERNAL_ERROR);
+                }
+                
+                if(first){
+                    first = false;
+                    L->First = tmp_struct_pointer;
+                    L->Last = tmp_struct_pointer;
+                    tmp_struct_pointer->next = NULL;
+                }
+                else{
+                    L->Last->next = tmp_struct_pointer;
+                    tmp_struct_pointer->next = NULL;
+                    L->Last = tmp_struct_pointer;
+                }
+
+                tmp_struct_pointer->value = std::stoi(help_string);
+                help_string = "";
+                if(value_list[i] == '\0'){
+                    break;
+                }
+            }
+            else{
+                help_string = help_string + value_list[i];
+            }
+        }
+
+    }
+
+
+
+
+/**
+ * 
+ */
 void write_domain_header(std::string domain_name, std::string ip_address){
     std::cout << "Interesting ports on " << domain_name << " (" << ip_address << "):" << std::endl;
     std::cout << "PORT\tSTATE" << std::endl;
@@ -276,19 +324,43 @@ void write_domain_header(std::string domain_name, std::string ip_address){
 /**
  * 
  */
-void check_TCP(struct Ports TCP_ports){
+void TCP(int order_num, struct Ports){
+    std::cout << order_num << "/tcp\t" << std::endl;
+}
+
+/**
+ * 
+ */
+void UDP(int order_num, struct Ports){
+    std::cout << order_num << "/udp\t" << std::endl;
+}
+
+/**
+ * 
+ */
+void process_TCP(struct Ports TCP_ports){
     if(TCP_ports.has_range){    // look at range
         // iterate throught the range
         for(int counter = TCP_ports.from; counter <= TCP_ports.to; counter++){
-            std::cout << counter << std::endl;
+            TCP(counter, TCP_ports);
         }
     }
     else{                       // look at simple list of values
         if(TCP_ports.multiple_values){  // look at multiple values
+            tList TCP_port_nums;
+            InitList(&TCP_port_nums, TCP_ports.ports);
 
+            // iterate and process
+            tElemPtr one_element = TCP_port_nums.First;
+            while(one_element != NULL){
+                TCP(one_element->value, TCP_ports);
+                one_element = one_element->next;
+            }
+
+            DisposeList(&TCP_port_nums);
         }
         else{                   // only one value
-
+            TCP(std::stoi(TCP_ports.ports), TCP_ports);
         }
     }
 }
@@ -296,22 +368,32 @@ void check_TCP(struct Ports TCP_ports){
 /**
  * 
  */
-void check_UDP(struct Ports UDP_ports){
+void process_UDP(struct Ports UDP_ports){
     std::string range_del = "-";
     std::string multiple_del = ",";
 
     if(UDP_ports.has_range){    // look at range
         // iterate through the range
         for(int counter = UDP_ports.from; counter <= UDP_ports.to; counter++){
-            std::cout << counter << std::endl;
+            UDP(counter, UDP_ports);
         }
     }
     else{                       // look at simple list of values
         if(UDP_ports.multiple_values){  // look at multiple values
+            tList UDP_port_nums;
+            InitList(&UDP_port_nums, UDP_ports.ports);
 
+            // iterate and process
+            tElemPtr one_elemnt = UDP_port_nums.First;
+            while(one_elemnt != NULL){
+                UDP(one_elemnt->value, UDP_ports);
+                one_elemnt = one_elemnt->next;
+            }
+            
+            DisposeList(&UDP_port_nums);
         }
         else{                   // only one value
-
+            UDP(std::stoi(UDP_ports.ports), UDP_ports);
         }
     }
 }
@@ -322,13 +404,22 @@ void check_UDP(struct Ports UDP_ports){
 int main(int argc, char *argv[]){
     InputArgument arguments;
     arguments.parse(argc, argv);
-    
-    write_domain_header(arguments.domain_name, arguments.ip_address);
-    if(arguments.pt_tcp_flag){
-        check_TCP(arguments.TCP_ports);
+
+    // write header if you can
+    if(arguments.pt_tcp_flag != false || arguments.pu_udp_flag){
+        write_domain_header(arguments.domain_name, arguments.ip_address);
     }
+    else{
+        std::cerr << "Not port have been entered" << std::endl;
+        exit(ARG_INVALID);
+    }
+    // TCP
+    if(arguments.pt_tcp_flag){
+        process_TCP(arguments.TCP_ports);
+    }
+    // UDP
     if(arguments.pu_udp_flag){
-        check_UDP(arguments.UDP_ports);
+        process_UDP(arguments.UDP_ports);
     }
     
     exit(OK);
