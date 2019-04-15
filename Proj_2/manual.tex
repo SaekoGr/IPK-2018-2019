@@ -36,4 +36,25 @@ Sabína Gregušová}
 \section{Úvod}
 Mojou úlohou bolo vytvoriť scanner sieťových služieb TCP a UDP v jazyku C alebo C++ a na štandartný výstup vypíše v akom stave sa dané porty nachádzajú.
 
+\section{Riešenie}
+Rozhodla som sa nepoužiť funkciu na automatické parsovanie argumentov, pretože s ňou nemám dobré skúsenosti a preto som si vytvorila triedu, v ktorej si preparsujem argumenty sama a všetky potrebné informácie si uložím do štruktúry \texttt{Ports}, ktorá obsahuje zoznam portov, flagy, ktoré informujú o existencii viacerých portov v zozname alebo označujú, že zoznam má určitý obsah (oddelený pomlčkou), tak ho rovno peparsuje a uloží. Ďaľšími dôležitými údajmi v štruktúre \texttt{Ports} je doménové meno a IP adresa.
+
+\subsection{Odosielanie paketov}
+Najnáročnejšou časťou projektu bolo určite správne odosielanie paketov. Chvíľku mi trvalo uvedomiť si, že je potrebné posielať raw packety, o ktorých ale na internete nie je veľa informácií ktoré by boli použiteľné a aj funkčné. Za najprínosnejší zdroj pre TCP protokol považujem \cite{tcp_tenouk}, pretože sa zameriava práve na problematiku odosielania raw paketov a správnej tvorby IP a TCP hlavičky. Rovnaká stránka veľmi dobre poslúžila aj s článkom o \cite{udp_tenouk} o UDP, kde bolo potrebné zamerať sa na ICMP, keďže inak bez neho by nebolo možné zistiť stav daného portu.
+
+\subsection{TCP skenovanie}
+
+\subsection{UDP skenovanie}
+
+\section{Testovanie}
+Kvôli náročnosti projektu mi už nezostal čas na vytvorenie automatických testov 
+
+\section{Záver}
+Tento projekt považujem za jeden z najnáročnejších projektov na FIT VUT. So sieťami som pred tým nemala vôbec žiadne skúsenosti a hoci mi učivo prišlo veľmi zaujímavé a podstate zadania som rozumela, bolo veľmi náročné zistiť ako všetko v jazyku C/C++ funguje.
+
+\newpage
+\bibliographystyle{czechiso}
+\renewcommand{\refname}{Použitá literatúra}
+\bibliography{manual}
+
 \end{document}
