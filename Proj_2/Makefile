@@ -1,7 +1,7 @@
 CC=g++
 CFLAGS=-std=c++11 -Wall -Wextra
 LFLAGS=-lpthread
-LDFLAGS=-lrt
+LDFLAGS=-lrt -lpcap
 all:
 	$(CC) $(CFLAGS) ipk-scan.cpp -o ipk-scan $(FLAGS) $(LDFLAGS)
 
