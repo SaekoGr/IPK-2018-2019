@@ -20,6 +20,7 @@
 #include <net/if.h>
 #include <regex>
 #include <pcap.h>
+#include <csignal>
 
 #include "ipk-scan.h"
 
@@ -515,30 +516,71 @@ unsigned short csum(unsigned short *ptr,int nbytes) {
 }
 
 /**
+ * 
+ */
+void my_packet_handler(u_char *args, const struct pcap_pkthdr *header, const u_char *packet){
+
+    int size_ip;
+
+    struct ether_header* eth = (ether_header*) packet;
+    struct iphdr* ip = (iphdr*) (packet + sizeof(ether_header));
+    struct tcphdr* tcp = (tcphdr*) (ip + sizeof(iphdr));
+
+    printf("I came from: %d port no %d\n", tcp->source, tcp->th_sport);
+    
+
+}
+
+void alarm_handler(int sig){
+    sig = 0;
+    pcap_breakloop(handle);
+}
+
+/**
  * https://www.tenouk.com/Module43b.html
+ * https://www.devdungeon.com/content/using-libpcap-c
  */
 void TCP(int order_num, struct Ports real_ports){
     //printf("SRC: %s\nDST: %s\n", real_ports.source_ip.c_str(), real_ports.dest_ip.c_str());
-    //return;
     //std::cout << order_num << "/tcp\t" << std::endl;
-    //return;
 
     char error_buffer[PCAP_ERRBUF_SIZE];
-    //handle = pcap_create(real_ports.interface.c_str(), error_buffer);
-    //pcap_set_rfmon(handle, 1);
-    //pcap_set_promisc(handle, 1);
-    //pcap_set_snaplen(handle, 2048);
-    //pcap_set_timeout(handle, 100000);
-    //pcap_activate(handle);
-    
     int raw_socket;
+    struct bpf_program fp;
+    bpf_u_int32 mask;
+    bpf_u_int32 net;
 
+    // preparing the filter string
+    std::string filter_exp = "tcp";
+    //std::cout << filter_exp << std::endl;
+    
+    // get network number and mask
+    if(pcap_lookupnet(real_ports.interface.c_str(), &net, &mask, error_buffer) == -1){
+        fprintf(stderr, "Couldn't get netmask for device %s : %s\n", real_ports.interface.c_str(), error_buffer);
+        net = 0;
+        mask = 0;
+    }
+
+    // open handle for given interface, non-promiscuous mode, timeout 2.5 seconds
+    handle = pcap_open_live(real_ports.interface.c_str(), SNAP_LEN, 0, 2500, error_buffer);
+    if(handle == NULL){
+        fprintf(stderr, "Couldn't open device %s\n: %s\n", real_ports.interface.c_str(), error_buffer);
+        exit(INTERNAL_ERROR);
+    }
+
+    // make sure to capte on an Ethernet device
+    if(pcap_datalink(handle) != DLT_EN10MB){
+        fprintf(stderr, "%s is not an Ethernet\n", real_ports.interface.c_str());
+        exit(INTERNAL_ERROR);
+    }
+    
     // creating the raw socket
     raw_socket = socket(PF_INET, SOCK_RAW, IPPROTO_TCP);
     if(raw_socket < 0){
         fprintf(stderr, "Failed to create the socket\n");
         exit(INTERNAL_ERROR);
     }
+
     
     // datagram to represent the packet
     char datagram[4096], source_ip[32];
@@ -548,7 +590,7 @@ void TCP(int order_num, struct Ports real_ports){
     // TCP header
     struct tcphdr *tcph = (struct tcphdr*) (datagram + sizeof(struct iphdr));
     struct sockaddr_in sin;
-    struct pseudo_header psh;
+    struct pseudo_header_tcp psh;
     strcpy(source_ip, real_ports.source_ip.c_str()); // source ip
 
     // set the source parameters
@@ -599,7 +641,115 @@ void TCP(int order_num, struct Ports real_ports){
 
     memcpy(&psh.tcp, tcph, sizeof(struct tcphdr));
 
-    tcph->check = csum((unsigned short*)&psh, sizeof(struct pseudo_header));
+    tcph->check = csum((unsigned short*)&psh, sizeof(struct pseudo_header_tcp));
+
+    // we need to tell kernel that headers are included in the packet
+    int one = 1;
+    const int *val = &one;
+    if(setsockopt(raw_socket, IPPROTO_IP, IP_HDRINCL, val, sizeof(one)) < 0){
+        fprintf(stderr, "Error setting IP_HDRINCL %d\n", errno);
+        exit(INTERNAL_ERROR);
+    }
+
+    // compile the filter expression
+    if(pcap_compile(handle, &fp, filter_exp.c_str(), 0, net) == -1){
+        fprintf(stderr, "Could't parse filter %s: %s\n", filter_exp.c_str(), pcap_geterr(handle));
+        exit(INTERNAL_ERROR);
+    }
+
+    // apply the filter expression
+    if(pcap_setfilter(handle, &fp) == -1){
+        fprintf(stderr, "Couldn't install filter %s: %s\n", filter_exp.c_str(), error_buffer);
+        exit(INTERNAL_ERROR);
+    }
+
+    // timeout 3 seconds
+    //alarm(1.2);
+    //std::signal(SIGALRM, alarm_handler);
+
+    // sending the packet
+    if(sendto(raw_socket, datagram, iph->tot_len, 0, (struct sockaddr *) &sin, sizeof(sin)) < 0){
+        fprintf(stderr, "Error while sending %d\n", errno);
+        exit(INTERNAL_ERROR);
+    }
+
+    // loop
+    //int catched = pcap_loop(handle, 0, my_packet_handler, NULL);
+    //printf("I cought %d\n", catched);
+
+    // clean all
+    pcap_freecode(&fp);
+    pcap_close(handle);
+    close(raw_socket);
+
+    // print the output
+    std::cout << order_num << "/tcp\t" << std::endl;
+}
+
+/**
+ * https://www.root.cz/clanky/sokety-a-c-raw-soket/
+ */
+void UDP(int order_num, struct Ports real_ports){
+    //std::cout << order_num << "/udp\t" << std::endl;
+    //return;
+
+
+    // datagram to represent the packet
+    char datagram[4096];
+
+    // IP and UDP headers
+    struct iphdr *iph = (struct iphdr*) datagram;
+    struct udphdr* udph = (struct udphdr*) (datagram + sizeof(struct iphdr));
+    struct pseudo_header_udp psh;
+    struct sockaddr_in sin;
+    int raw_socket;
+
+
+    // creating the raw socket
+    raw_socket = socket(PF_INET, SOCK_RAW, IPPROTO_UDP);
+    if(raw_socket < 0){
+        fprintf(stderr, "Failed to create the socket\n");
+        exit(INTERNAL_ERROR);
+    }
+
+    // address family
+    sin.sin_family = AF_INET;
+    sin.sin_port = htons(order_num);
+    sin.sin_addr.s_addr = inet_addr(real_ports.dest_ip.c_str());
+
+    // zero out the buffer
+    memset(datagram, 0, 4096);
+
+    // filling the IP header
+    iph->ihl = 5;
+    iph->version = 4;
+    iph->tos = 0;
+    iph->tot_len = sizeof(struct iphdr) + sizeof(struct udphdr);
+    iph->id = htons(54321);
+    iph->frag_off = 0;
+    iph->ttl = 255;
+    iph->protocol = IPPROTO_UDP;
+    iph->check = 0;
+    iph->saddr = inet_addr(real_ports.source_ip.c_str());
+    iph->daddr = sin.sin_addr.s_addr;
+
+    iph->check = csum((unsigned short*) datagram, iph->tot_len >> 1);
+
+    // filling the TCP header
+    udph->source = htons(1234);
+    udph->dest = htons(order_num);
+    udph->len = sizeof(struct iphdr) + sizeof(struct udphdr);
+    udph->check = 0;
+
+    // IP checksum
+    psh.source_address = inet_addr(real_ports.source_ip.c_str());
+    psh.dest_address = sin.sin_addr.s_addr;
+    psh.placeholder = 0;
+    psh.protocol = IPPROTO_UDP;
+
+    memcpy(&psh.udp, udph, sizeof(struct udphdr));
+
+    udph->check = csum((unsigned short*)&psh, sizeof(struct pseudo_header_udp));
 
     // we need to tell kernel that headers are included in the packet
     int one = 1;
@@ -615,36 +765,9 @@ void TCP(int order_num, struct Ports real_ports){
         exit(INTERNAL_ERROR);
     }
 
-
-    //handle = 
-    // close the raw socket
-    close(raw_socket);
-    //pcap_close(handle);
-
-    // print the output
-    std::cout << order_num << "/tcp\t" << std::endl;
-}
-
-/**
- * 
- */
-void UDP(int order_num, struct Ports real_ports){
-    std::cout << order_num << "/udp\t" << std::endl;
-    return;
-
-    int raw_socket;
-
-    // creating the raw socket
-    raw_socket = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-    if(raw_socket < 0){
-        fprintf(stderr, "Failed to create the socket\n");
-        exit(INTERNAL_ERROR);
-    }
-
     // closing the raw socket
     close(raw_socket);
 
-    printf("%d\n", real_ports.to);
     std::cout << order_num << "/udp\t" << std::endl;
 }
 
@@ -656,6 +779,7 @@ void process_TCP(struct Ports TCP_ports){
     if(TCP_ports.has_range){    // look at range
         // iterate throught the range
         for(int counter = TCP_ports.from; counter <= TCP_ports.to; counter++){
+            current_port = counter;
             TCP(counter, TCP_ports);
         }
     }
@@ -667,6 +791,7 @@ void process_TCP(struct Ports TCP_ports){
             // iterate and process
             tElemPtr one_element = TCP_port_nums.First;
             while(one_element != NULL){
+                current_port = one_element->value;
                 TCP(one_element->value, TCP_ports);
                 one_element = one_element->next;
             }
@@ -674,6 +799,7 @@ void process_TCP(struct Ports TCP_ports){
             DisposeList(&TCP_port_nums);
         }
         else{                   // only one value
+            current_port = std::stoi(TCP_ports.ports);
             TCP(std::stoi(TCP_ports.ports), TCP_ports);
         }
     }
@@ -686,6 +812,7 @@ void process_UDP(struct Ports UDP_ports){
     if(UDP_ports.has_range){    // look at range
         // iterate through the range
         for(int counter = UDP_ports.from; counter <= UDP_ports.to; counter++){
+            current_port = counter;
             UDP(counter, UDP_ports);
         }
     }
@@ -695,15 +822,17 @@ void process_UDP(struct Ports UDP_ports){
             InitList(&UDP_port_nums, UDP_ports.ports);
 
             // iterate and process
-            tElemPtr one_elemnt = UDP_port_nums.First;
-            while(one_elemnt != NULL){
-                UDP(one_elemnt->value, UDP_ports);
-                one_elemnt = one_elemnt->next;
+            tElemPtr one_element = UDP_port_nums.First;
+            while(one_element != NULL){
+                current_port = one_element->value;
+                UDP(one_element->value, UDP_ports);
+                one_element = one_element->next;
             }
             
             DisposeList(&UDP_port_nums);
         }
         else{                   // only one value
+            current_port = std::stoi(UDP_ports.ports);
             UDP(std::stoi(UDP_ports.ports), UDP_ports);
         }
     }
@@ -721,16 +850,16 @@ int main(int argc, char *argv[]){
         write_domain_header(arguments.domain_name, arguments.ip_address);
     }
     else{
-        std::cerr << "Not ports have been entered" << std::endl;
+        fprintf(stderr, "Not ports have been entered\n");
         exit(ARG_INVALID);
     }
     // TCP
     if(arguments.pt_tcp_flag){
-        process_TCP(arguments.TCP_ports);
+        //process_TCP(arguments.TCP_ports);
     }
     // UDP
     if(arguments.pu_udp_flag){
-        //process_UDP(arguments.UDP_ports);
+        process_UDP(arguments.UDP_ports);
     }
     
     exit(OK);

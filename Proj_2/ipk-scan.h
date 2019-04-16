@@ -4,13 +4,17 @@
 #define ARG_INVALID 1
 #define INTERNAL_ERROR 2
 #define MAXLINE 1024
+#define SNAP_LEN 1518
+#define SIZE_ETHERNET 14
+#define PCKT_LEN 8192
 
 pcap_t *handle;
+int current_port;
 
 /**
  * https://stackoverflow.com/questions/51662138/tcp-syn-flood-using-raw-socket-in-ubuntu?fbclid=IwAR0lXO0WlhnHh2dx71zecLolnA-57aUgcPDsDCVkLJnL2l9eZHteotcZw6c
  */
-struct pseudo_header   
+struct pseudo_header_tcp   
 {
     unsigned int source_address;
     unsigned int dest_address;
@@ -19,6 +23,18 @@ struct pseudo_header
     unsigned short tcp_length;
      
     struct tcphdr tcp;
+};
+
+
+struct pseudo_header_udp   
+{
+    unsigned int source_address;
+    unsigned int dest_address;
+    unsigned char placeholder;
+    unsigned char protocol;
+    unsigned short tcp_length;
+     
+    struct udphdr udp;
 };
 
 /**
@@ -51,3 +67,4 @@ typedef struct{
     tElemPtr First;
     tElemPtr Last;
 } tList;
+
