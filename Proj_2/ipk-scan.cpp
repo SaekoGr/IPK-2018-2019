@@ -686,6 +686,7 @@ void TCP(int order_num, struct Ports real_ports){
     std::cout << order_num << "/tcp\t" << std::endl;
 }
 
+
 /**
  * https://www.root.cz/clanky/sokety-a-c-raw-soket/
  */
@@ -693,17 +694,13 @@ void UDP(int order_num, struct Ports real_ports){
     //std::cout << order_num << "/udp\t" << std::endl;
     //return;
 
-
-    // datagram to represent the packet
-    char datagram[4096];
-
     // IP and UDP headers
-    struct iphdr *iph = (struct iphdr*) datagram;
-    struct udphdr* udph = (struct udphdr*) (datagram + sizeof(struct iphdr));
-    struct pseudo_header_udp psh;
+    char buffer[PCKT_LEN];
     struct sockaddr_in sin;
     int raw_socket;
 
+    struct iphdr *iph = (struct iphdr *)buffer;
+    struct udphdr *udph = (struct udphdr *)(buffer + sizeof(iphdr));
 
     // creating the raw socket
     raw_socket = socket(PF_INET, SOCK_RAW, IPPROTO_UDP);
@@ -712,44 +709,31 @@ void UDP(int order_num, struct Ports real_ports){
         exit(INTERNAL_ERROR);
     }
 
-    // address family
-    sin.sin_family = AF_INET;
-    sin.sin_port = htons(order_num);
-    sin.sin_addr.s_addr = inet_addr(real_ports.dest_ip.c_str());
-
-    // zero out the buffer
-    memset(datagram, 0, 4096);
-
-    // filling the IP header
-    iph->ihl = 5;
+    // filing in the IP header
     iph->version = 4;
+    iph->ihl = 5;
     iph->tos = 0;
     iph->tot_len = sizeof(struct iphdr) + sizeof(struct udphdr);
     iph->id = htons(54321);
-    iph->frag_off = 0;
+    iph->frag_off = htons(16384);   // fragmentation is off
     iph->ttl = 255;
     iph->protocol = IPPROTO_UDP;
     iph->check = 0;
     iph->saddr = inet_addr(real_ports.source_ip.c_str());
-    iph->daddr = sin.sin_addr.s_addr;
+    iph->daddr = inet_addr(real_ports.dest_ip.c_str());
 
-    iph->check = csum((unsigned short*) datagram, iph->tot_len >> 1);
+    iph->check = htons(csum((unsigned short *)iph, sizeof(iphdr)));
 
-    // filling the TCP header
+    // filling in the UDP header
     udph->source = htons(1234);
     udph->dest = htons(order_num);
-    udph->len = sizeof(struct iphdr) + sizeof(struct udphdr);
+    udph->len = htons(sizeof(struct udphdr));
     udph->check = 0;
 
-    // IP checksum
-    psh.source_address = inet_addr(real_ports.source_ip.c_str());
-    psh.dest_address = sin.sin_addr.s_addr;
-    psh.placeholder = 0;
-    psh.protocol = IPPROTO_UDP;
+    sin.sin_port = htons(order_num);
+    sin.sin_family = AF_INET;
+    sin.sin_addr.s_addr = inet_addr(real_ports.dest_ip.c_str());
 
-    memcpy(&psh.udp, udph, sizeof(struct udphdr));
-
-    udph->check = csum((unsigned short*)&psh, sizeof(struct pseudo_header_udp));
 
     // we need to tell kernel that headers are included in the packet
     int one = 1;
@@ -760,7 +744,7 @@ void UDP(int order_num, struct Ports real_ports){
     }
 
     // sending the packet
-    if(sendto(raw_socket, datagram, iph->tot_len, 0, (struct sockaddr *) &sin, sizeof(sin)) < 0){
+    if(sendto(raw_socket, buffer, sizeof(struct iphdr) + sizeof(struct udphdr), 0, (struct sockaddr *) &sin, sizeof(sin)) < 0){
         fprintf(stderr, "Error while sending %d\n", errno);
         exit(INTERNAL_ERROR);
     }
