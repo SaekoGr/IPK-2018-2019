@@ -489,15 +489,29 @@ void write_domain_header(std::string domain_name, std::string ip_address){
 }
 
 /**
- * https://www.tenouk.com/Module43b.html
+ * https://stackoverflow.com/questions/51662138/tcp-syn-flood-using-raw-socket-in-ubuntu?fbclid=IwAR0lXO0WlhnHh2dx71zecLolnA-57aUgcPDsDCVkLJnL2l9eZHteotcZw6c
  */
-unsigned short csum(unsigned short *buf, int nwords){
-    unsigned long sum;
-    for(sum=0; nwords>0; nwords--)
-            sum += *buf++;
-    sum = (sum >> 16) + (sum &0xffff);
-    sum += (sum >> 16);
-    return (unsigned short)(~sum);
+unsigned short csum(unsigned short *ptr,int nbytes) {
+    long sum;
+    unsigned short oddbyte;
+    short answer;
+ 
+    sum=0;
+    while(nbytes>1) {
+        sum+=*ptr++;
+        nbytes-=2;
+    }
+    if(nbytes==1) {
+        oddbyte=0;
+        *((u_char*)&oddbyte)=*(u_char*)ptr;
+        sum+=oddbyte;
+    }
+ 
+    sum = (sum>>16)+(sum & 0xffff);
+    sum = sum + (sum>>16);
+    answer=(short)~sum;
+     
+    return(answer);
 }
 
 /**
@@ -527,12 +541,15 @@ void TCP(int order_num, struct Ports real_ports){
     }
     
     // datagram to represent the packet
-    char datagram[4096];
+    char datagram[4096], source_ip[32];
 
-    // we need to map it so the datagram can represent it
-    struct ipheader* iph = (struct ipheader*) datagram;
-    struct tcpheader* tcph = (struct tcpheader*) datagram + sizeof(ipheader);
+    // IP header
+    struct iphdr *iph = (struct iphdr*) datagram;
+    // TCP header
+    struct tcphdr *tcph = (struct tcphdr*) (datagram + sizeof(struct iphdr));
     struct sockaddr_in sin;
+    struct pseudo_header psh;
+    strcpy(source_ip, real_ports.source_ip.c_str()); // source ip
 
     // set the source parameters
     sin.sin_family = AF_INET;
@@ -542,38 +559,47 @@ void TCP(int order_num, struct Ports real_ports){
     // zero out the buffer
     memset(datagram, 0, 4096);
 
-    // filling in the ip header
-    iph->iph_ihl = 5;
-    iph->iph_ver = 4;
-    iph->iph_tos = 0;
-    iph->iph_len = sizeof(struct ipheader) + sizeof(struct tcpheader);
-    iph->iph_ident = htons(54321); // this dosn't matter
-    iph->iph_offset = 0;
-    iph->iph_ttl = 255;
-    iph->iph_protocol = IPPROTO_TCP;
-    iph->iph_chksum = 0;
+    // filling the IP header
+    iph->ihl = 5;
+    iph->version = 4;
+    iph->tos = 0;
+    iph->tot_len = sizeof(struct iphdr) + sizeof(struct tcphdr);
+    iph->id = htons(54321);
+    iph->frag_off = 0;
+    iph->ttl = 255;
+    iph->protocol = IPPROTO_TCP;
+    iph->check = 0;
+    iph->saddr = inet_addr(source_ip);
+    iph->daddr = sin.sin_addr.s_addr;
 
-    // setting the source and destination
-    iph->iph_sourceip = inet_addr(real_ports.source_ip.c_str());
-    iph->iph_destip = sin.sin_addr.s_addr;
+    iph->check = csum((unsigned short*) datagram, iph->tot_len >> 1);
 
-    // iph checksum
-    iph->iph_chksum = csum((unsigned short*)datagram, iph->iph_len >> 1);
+    // filling the TCP header
+    tcph->source = htons(1234);
+    tcph->dest = htons(order_num);
+    tcph->seq = 0;
+    tcph->ack_seq = 0;
+    tcph->doff = 5;
+    tcph->fin = 0;
+    tcph->syn = 1;
+    tcph->rst=0;
+    tcph->psh=0;
+    tcph->ack=0;
+    tcph->urg=0;
+    tcph->window = htons(5840);
+    tcph->check = 0;
+    tcph->urg_ptr = 0;
 
-    // setting the tcph header
-    tcph->tcph_srcport = htons(5678);
-    tcph->tcph_destport = htons(order_num);
-    tcph->tcph_seqnum = random();
-    tcph->tcph_acknum = 0;
-    tcph->tcph_res2 = 0;
-    tcph->tcph_offset = 0;
-    tcph->tcph_syn = TH_FIN;
-    tcph->tcph_win = htonl(65535);
-    tcph->tcph_chksum = 0;
-    tcph->tcph_urgptr = 0;
+    // IP checksum
+    psh.source_address = inet_addr(source_ip);
+    psh.dest_address = sin.sin_addr.s_addr;
+    psh.placeholder = 0;
+    psh.protocol = IPPROTO_TCP;
+    psh.tcp_length = htons(20);
 
-    // calculate the checksum
-    tcph->tcph_chksum = csum((unsigned short *) datagram, sizeof(struct tcph* ));
+    memcpy(&psh.tcp, tcph, sizeof(struct tcphdr));
+
+    tcph->check = csum((unsigned short*)&psh, sizeof(struct pseudo_header));
 
     // we need to tell kernel that headers are included in the packet
     int one = 1;
@@ -584,15 +610,13 @@ void TCP(int order_num, struct Ports real_ports){
     }
 
     // sending the packet
-    if(sendto(raw_socket, datagram, iph->iph_len, 0, (struct sockaddr *) &sin, sizeof(sin)) < 0){
+    if(sendto(raw_socket, datagram, iph->tot_len, 0, (struct sockaddr *) &sin, sizeof(sin)) < 0){
         fprintf(stderr, "Error while sending %d\n", errno);
         exit(INTERNAL_ERROR);
     }
 
 
     //handle = 
-
-
     // close the raw socket
     close(raw_socket);
     //pcap_close(handle);
