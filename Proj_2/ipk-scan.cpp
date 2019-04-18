@@ -22,6 +22,7 @@
 #include <pcap.h>
 #include <csignal>
 
+
 #include "ipk-scan.h"
 
 
@@ -33,8 +34,7 @@ class InputArgument{
         bool pt_tcp_flag = false;
         bool pu_udp_flag = false;
         bool interface_flag = false;
-        bool ipv4_flag = false;
-        bool ipv6_flag = false; 
+        bool ip_domain_input = false;
         std::string domain_name;
         std::string ip_address;
         std::string interface_ip;
@@ -54,13 +54,13 @@ class InputArgument{
 
             // too many or too few arguments
             if(argc == 1 || argc > 8){
-                std::cerr <<"Invalid input arguments"<< std::endl;
+                fprintf(stderr, "Invalid input arguments\n");
                 exit(ARG_INVALID);
             }
 
             // must be even number of arguments
             if(argc % 2 != 0){
-                std::cerr <<"Invalid input arguments"<< std::endl;
+                fprintf(stderr, "Invalid input arguments\n");
                 exit(ARG_INVALID);
             }
 
@@ -78,7 +78,7 @@ class InputArgument{
                         }
                     }
                     else{   // ERROR
-                        std::cerr <<"Invalid input arguments"<< std::endl;
+                        fprintf(stderr, "Invalid input arguments\n");
                         exit(ARG_INVALID);
                     }
                 }   // UDP flags
@@ -105,13 +105,15 @@ class InputArgument{
                     }
                 }
                 // DOMAIN NAME | IP ADDRESS
-                else if(strcmp(argv[counter],argv[(argc-1)]) == 0){
-                    this->resolve_ip_or_host(argv[counter]);
-                }
-                
-                else{       // ERROR
-                    std::cerr <<"Invalid input arguments"<< std::endl;
-                    exit(ARG_INVALID);
+                else{
+                    if(!ip_domain_input){
+                        this->resolve_ip_or_host(argv[counter]);
+                        ip_domain_input = true;
+                    }
+                    else{
+                        fprintf(stderr, "Invalid input arguments\n");
+                        exit(ARG_INVALID);
+                    }
                 }
                 counter++;
             }
@@ -156,43 +158,55 @@ class InputArgument{
 
                 family = ifa->ifa_addr->sa_family;
 
-
-                // TODO IPV4/IPV6
-                if(family == AF_INET || family == AF_INET6){
-                    s = getnameinfo(ifa->ifa_addr, (family == AF_INET) ? sizeof(struct sockaddr_in) : 
-                                                                         sizeof(struct sockaddr_in6),
-                                                    host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
-                    if(s != 0){
-                        fprintf(stderr, "getnameinfo failed\n");
-                        exit(INTERNAL_ERROR);
+                    // IPv4
+                if(ipv4_flag){
+                    if(family == AF_INET){
+                        s = getnameinfo(ifa->ifa_addr, sizeof(struct sockaddr_in), host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+                        if(s != 0){
+                            fprintf(stderr, "getnameinfo failed\n");
+                            exit(INTERNAL_ERROR);
+                        }
                     }
+                    else{
+                        continue;
+                    }
+                }  // IPv6
+                if(ipv6_flag){
+                    if(family == AF_INET6){
+                        s = getnameinfo(ifa->ifa_addr, sizeof(struct sockaddr_in6), host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+                        if(s != 0){
+                            fprintf(stderr, "getnameinfo failed\n");
+                            exit(INTERNAL_ERROR);
+                        }
+                    }
+                    else{
+                        continue;
+                    }
+                }
 
-
-                    // get first loopback address                    
-                    if(!this->interface_flag){
+                // get first loopback address                    
+                if(!this->interface_flag){
+                    if(!(ifa->ifa_flags & IFF_LOOPBACK)){
+                        found = true;
+                        this->interface_ip.assign(host);
+                        this->interface_name.assign(ifa->ifa_name);
+                        break;
+                    }
+                }
+                else{   // check whether given interface exists
+                    if(strcmp(this->interface_name.c_str(), ifa->ifa_name) == 0){
                         if(!(ifa->ifa_flags & IFF_LOOPBACK)){
                             found = true;
                             this->interface_ip.assign(host);
-                            this->interface_name.assign(ifa->ifa_name);
                             break;
                         }
-                    }
-                    else{   // check whether given interface exists
-                        //printf("Input_name %s\tIfa_name %s\n", this->interface_name.c_str(), ifa->ifa_name);
-                        if(strcmp(this->interface_name.c_str(), ifa->ifa_name) == 0){
-                            
-                            if(!(ifa->ifa_flags & IFF_LOOPBACK)){
-                                found = true;
-                                this->interface_ip.assign(host);
-                                break;
-                            }
-                            else{   // should not be loopback
-                                fprintf(stderr, "Input address is loopback\n");
-                                exit(INTERNAL_ERROR);
-                            }
+                        else{   // should not be loopback
+                            fprintf(stderr, "Input address is loopback\n");
+                            exit(INTERNAL_ERROR);
                         }
                     }
                 }
+                
                 
             }
             // free the address
@@ -203,7 +217,6 @@ class InputArgument{
                 fprintf(stderr, "Interface error\n");
                 exit(INTERNAL_ERROR);
             }
-            printf("At the end: address %s ip %s\n", this->interface_name.c_str(), this->interface_ip.c_str());
             
         }
 
@@ -316,11 +329,11 @@ class InputArgument{
         bool is_ip(char* value){
             // IPv4
             if(std::regex_match(value, std::regex("^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])[.]){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"))){
-                this->ipv4_flag = true;
+                ipv4_flag = true;
                 return true;
             } // IPv6
             else if(std::regex_match(value, std::regex("(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])[.]){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])[.]){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))"))){
-                this->ipv6_flag = true;
+                ipv6_flag = true;
                 return true;
             }
             return false;
@@ -337,6 +350,7 @@ class InputArgument{
                 this->ip_to_hostname();
             }
             else{               // value is domain name
+                ipv4_flag = true;
                 this->domain_name.assign(value);
                 this->hostname_to_ip();
             }
@@ -353,11 +367,11 @@ class InputArgument{
             struct in6_addr ipv6addr;
 
             // IPv4
-            if(this->ipv4_flag){
+            if(ipv4_flag){
                 inet_pton(AF_INET, this->ip_address.c_str(), &ipv4addr);
                 he = gethostbyaddr(&ipv4addr, sizeof ipv4addr, AF_INET);
             } // IPv6
-            else if(this->ipv6_flag)
+            else if(ipv6_flag)
             {
                 inet_pton(AF_INET6, this->ip_address.c_str(), &ipv6addr);
                 he = gethostbyaddr(&ipv6addr, sizeof ipv6addr, AF_INET6);
@@ -515,21 +529,6 @@ unsigned short csum(unsigned short *ptr,int nbytes) {
     return(answer);
 }
 
-/**
- * 
- */
-void my_packet_handler(u_char *args, const struct pcap_pkthdr *header, const u_char *packet){
-
-    int size_ip;
-
-    struct ether_header* eth = (ether_header*) packet;
-    struct iphdr* ip = (iphdr*) (packet + sizeof(ether_header));
-    struct tcphdr* tcp = (tcphdr*) (ip + sizeof(iphdr));
-
-    printf("I came from: %d port no %d\n", tcp->source, tcp->th_sport);
-    
-
-}
 
 void alarm_handler(int sig){
     sig = 0;
@@ -537,21 +536,104 @@ void alarm_handler(int sig){
 }
 
 /**
+ * 
+ */
+void TCP_IPv6(int order_num, struct Ports real_ports){
+    //printf("SRC: %s\nDST: %s\n", real_ports.source_ip.c_str(), real_ports.dest_ip.c_str());
+    return;
+
+    char error_buffer[PCAP_ERRBUF_SIZE];
+    unsigned char buffer[IPV6PCKT_LEN];
+    struct sockaddr_in6 din;
+    struct ipv6_header *ip = (struct ipv6_header*) buffer;
+    //int size = sizeof(struct ipv6_header);
+    struct tcphdr *tcph = (struct tcphdr *) (buffer + sizeof (struct ipv6_header));
+
+    // clear the buffer
+    memset(buffer, 0, IPV6PCKT_LEN);
+
+    din.sin6_port = 0;
+    din.sin6_family = AF_INET6;
+    inet_pton(AF_INET6, real_ports.dest_ip.c_str(), &(din.sin6_addr));
+
+    // filling in the IP header
+    ip->version = 6;
+    ip->traffic_class = 0;
+    ip->flow_label = 0;
+    ip->length = 40;
+    ip->next_header = 6; // next layer is TCP
+    ip->hop_limit = 64;
+    inet_pton(AF_INET6, real_ports.dest_ip.c_str(), &(ip->dst));
+    inet_pton(AF_INET6, real_ports.source_ip.c_str(),&(ip->src));
+
+    // filling the TCP header
+    tcph->source = htons(1234);
+    tcph->dest = htons(order_num);
+    tcph->seq = 0;
+    tcph->ack_seq = 0;
+    tcph->doff = 5;
+    tcph->fin = 0;
+    tcph->syn = 1;
+    tcph->rst=0;
+    tcph->psh=0;
+    tcph->ack=0;
+    tcph->urg=0;
+    tcph->window = htons(5840);
+    tcph->check = 0;
+    tcph->urg_ptr = 0;
+
+    int raw_socket;
+
+    // creating the raw socket
+    raw_socket = socket(AF_INET6, SOCK_RAW, IPPROTO_TCP);
+    if(raw_socket < 0){
+        fprintf(stderr, "Failed to create the socket\n");
+        exit(INTERNAL_ERROR);
+    }
+
+    // we need to tell kernel that headers are included in the packet
+    int one = 1;
+    const int *val = &one;
+    if(setsockopt(raw_socket, IPPROTO_IPV6, IPV6_HDRINCL, val, sizeof(one)) < 0){
+        fprintf(stderr, "Error setting IP_HDRINCL %d\n", errno);
+        exit(INTERNAL_ERROR);
+    }
+
+    // send TCP packet
+    unsigned short int packet_len = sizeof(struct ipv6_header) + sizeof(struct tcphdr);
+    if(sendto(raw_socket, buffer, packet_len, 0, (struct sockaddr*)&din, sizeof(din)) == -1){
+        fprintf(stderr, "Failed to send : %d\n", errno);
+        exit(INTERNAL_ERROR);
+    }
+
+    // clean all
+    close(raw_socket);
+
+    std::cout << order_num << "/udp\t" << std::endl;
+}
+
+/**
  * https://www.tenouk.com/Module43b.html
  * https://www.devdungeon.com/content/using-libpcap-c
  */
-void TCP(int order_num, struct Ports real_ports){
+void TCP_IPv4(int order_num, struct Ports real_ports){
     //printf("SRC: %s\nDST: %s\n", real_ports.source_ip.c_str(), real_ports.dest_ip.c_str());
     //std::cout << order_num << "/tcp\t" << std::endl;
 
     char error_buffer[PCAP_ERRBUF_SIZE];
+    const u_char *packet;
+    struct pcap_pkthdr packet_header;
+    int ethernet_header_length = 14;
+    int ip_header_length;
     int raw_socket;
     struct bpf_program fp;
     bpf_u_int32 mask;
     bpf_u_int32 net;
+    const u_char *ip_header;
+    struct tcphdr *tcp_header;
 
     // preparing the filter string
-    std::string filter_exp = "tcp";
+    std::string filter_exp = "tcp and dst port 1234";
     //std::cout << filter_exp << std::endl;
     
     // get network number and mask
@@ -580,7 +662,6 @@ void TCP(int order_num, struct Ports real_ports){
         fprintf(stderr, "Failed to create the socket\n");
         exit(INTERNAL_ERROR);
     }
-
     
     // datagram to represent the packet
     char datagram[4096], source_ip[32];
@@ -663,9 +744,8 @@ void TCP(int order_num, struct Ports real_ports){
         exit(INTERNAL_ERROR);
     }
 
-    // timeout 3 seconds
-    //alarm(1.2);
-    //std::signal(SIGALRM, alarm_handler);
+    alarm(3);
+    std::signal(SIGALRM, alarm_handler);
 
     // sending the packet
     if(sendto(raw_socket, datagram, iph->tot_len, 0, (struct sockaddr *) &sin, sizeof(sin)) < 0){
@@ -674,8 +754,51 @@ void TCP(int order_num, struct Ports real_ports){
     }
 
     // loop
-    //int catched = pcap_loop(handle, 0, my_packet_handler, NULL);
-    //printf("I cought %d\n", catched);
+    packet = pcap_next(handle, &packet_header);
+    alarm(0);
+    if(packet == NULL){ // no answer, try again
+        alarm(3);
+        std::signal(SIGALRM, alarm_handler);
+
+        if(sendto(raw_socket, datagram, iph->tot_len, 0, (struct sockaddr *) &sin, sizeof(sin)) < 0){
+            fprintf(stderr, "Error while sending %d\n", errno);
+            exit(INTERNAL_ERROR);
+        }
+
+        // try to catch it again
+        packet = pcap_next(handle, &packet_header);
+        alarm(0);
+        if(packet == NULL){
+            std::cout << order_num << "/tcp\tfiltered" << std::endl;
+        }
+        else{
+            ip_header = packet + ethernet_header_length;
+            ip_header_length = ((*ip_header) & 0x0F);
+            ip_header_length = ip_header_length * 4;
+
+            tcp_header = (struct tcphdr*) (packet + ethernet_header_length + ip_header_length);
+            if(tcp_header->rst == 1 && tcp_header->ack == 1){
+                std::cout << order_num << "/tcp\tclosed" << std::endl;
+            }
+            else if(tcp_header->rst == 0 && tcp_header->ack == 1){
+                std::cout << order_num << "/tcp\topen" << std::endl;
+            }
+        }
+    }
+    else{
+        struct ether_header *eth_header = (struct ether_header *) packet;
+        ip_header = packet + ethernet_header_length;
+        ip_header_length = ((*ip_header) & 0x0F);
+        ip_header_length = ip_header_length * 4;
+
+        tcp_header = (struct tcphdr*) (packet + ethernet_header_length + ip_header_length);
+        if(tcp_header->rst == 1 && tcp_header->ack == 1){
+            std::cout << order_num << "/tcp\tclosed" << std::endl;
+        }
+        else if(tcp_header->rst == 0 && tcp_header->ack == 1){
+            std::cout << order_num << "/tcp\topen" << std::endl;
+        }
+    }
 
     // clean all
     pcap_freecode(&fp);
@@ -683,24 +806,63 @@ void TCP(int order_num, struct Ports real_ports){
     close(raw_socket);
 
     // print the output
-    std::cout << order_num << "/tcp\t" << std::endl;
+    //std::cout << order_num << "/tcp\t" << std::endl;
 }
 
+/**
+ * 
+ */
+void UDP_IPv6(int order_num, struct Ports real_ports){
+    char buffer[BUFSIZ];
+    const size_t len = sizeof(struct ipv6_header) + sizeof(struct udphdr);
+    struct ipv6_header *ip = (struct ipv6_header*) (buffer);
+}
 
 /**
  * https://www.root.cz/clanky/sokety-a-c-raw-soket/
  */
-void UDP(int order_num, struct Ports real_ports){
+void UDP_IPv4(int order_num, struct Ports real_ports){
     //std::cout << order_num << "/udp\t" << std::endl;
     //return;
 
     // IP and UDP headers
     char buffer[PCKT_LEN];
+    char error_buffer[PCAP_ERRBUF_SIZE];
     struct sockaddr_in sin;
     int raw_socket;
+    bpf_u_int32 mask;
+    bpf_u_int32 net;
+    struct bpf_program fp;
+    const u_char *packet;
+    struct pcap_pkthdr packet_header;
+    std::string filter_exp;
 
     struct iphdr *iph = (struct iphdr *)buffer;
     struct udphdr *udph = (struct udphdr *)(buffer + sizeof(iphdr));
+
+    // preparing the filter string
+    filter_exp = "icmp"; //"and dst host " + real_ports.source_ip;
+    //std::cout << filter_exp << std::endl;
+
+    // get network number and mask
+    if(pcap_lookupnet(real_ports.interface.c_str(), &net, &mask, error_buffer) == -1){
+        fprintf(stderr, "Couldn't get netmask for device %s : %s\n", real_ports.interface.c_str(), error_buffer);
+        net = 0;
+        mask = 0;
+    }
+
+    // open handle for given interface, non-promiscuous mode, timeout 2.5 seconds
+    handle = pcap_open_live(real_ports.interface.c_str(), SNAP_LEN, 0, 2500, error_buffer);
+    if(handle == NULL){
+        fprintf(stderr, "Couldn't open device %s\n: %s\n", real_ports.interface.c_str(), error_buffer);
+        exit(INTERNAL_ERROR);
+    }
+
+    // make sure to capte on an Ethernet device
+    if(pcap_datalink(handle) != DLT_EN10MB){
+        fprintf(stderr, "%s is not an Ethernet\n", real_ports.interface.c_str());
+        exit(INTERNAL_ERROR);
+    }
 
     // creating the raw socket
     raw_socket = socket(PF_INET, SOCK_RAW, IPPROTO_UDP);
@@ -743,49 +905,113 @@ void UDP(int order_num, struct Ports real_ports){
         exit(INTERNAL_ERROR);
     }
 
+    // compile the filter expression
+    if(pcap_compile(handle, &fp, filter_exp.c_str(), 0, net) == -1){
+        fprintf(stderr, "Could't parse filter %s: %s\n", filter_exp.c_str(), pcap_geterr(handle));
+        exit(INTERNAL_ERROR);
+    }
+
+    // apply the filter expression
+    if(pcap_setfilter(handle, &fp) == -1){
+        fprintf(stderr, "Couldn't install filter %s: %s\n", filter_exp.c_str(), error_buffer);
+        exit(INTERNAL_ERROR);
+    }
+
+    // alarm
+    alarm(3);
+    std::signal(SIGALRM, alarm_handler);
+
     // sending the packet
     if(sendto(raw_socket, buffer, sizeof(struct iphdr) + sizeof(struct udphdr), 0, (struct sockaddr *) &sin, sizeof(sin)) < 0){
         fprintf(stderr, "Error while sending %d\n", errno);
         exit(INTERNAL_ERROR);
     }
 
+    // loop
+    packet = pcap_next(handle, &packet_header);
+    if(packet == NULL){
+        //printf("I don't have it\n");
+        std::cout << order_num << "/udp\topen" << std::endl;
+    }
+    else{
+        //printf("I found it\n");
+        std::cout << order_num << "/udp\tclosed" << std::endl;
+    }
+
     // closing the raw socket
+    pcap_freecode(&fp);
+    pcap_close(handle);
     close(raw_socket);
 
-    std::cout << order_num << "/udp\t" << std::endl;
+
+    //std::cout << order_num << "/udp\t" << std::endl;
 }
 
 /**
  * 
  */
 void process_TCP(struct Ports TCP_ports){
+    if(ipv4_flag){
+        if(TCP_ports.has_range){    // look at range
+            // iterate throught the range
+            for(int counter = TCP_ports.from; counter <= TCP_ports.to; counter++){
+                current_port = counter;
+                TCP_IPv4(counter, TCP_ports);
+            }
+        }
+        else{                       // look at simple list of values
+            if(TCP_ports.multiple_values){  // look at multiple values
+                tList TCP_port_nums;
+                InitList(&TCP_port_nums, TCP_ports.ports);
 
-    if(TCP_ports.has_range){    // look at range
-        // iterate throught the range
-        for(int counter = TCP_ports.from; counter <= TCP_ports.to; counter++){
-            current_port = counter;
-            TCP(counter, TCP_ports);
+                // iterate and process
+                tElemPtr one_element = TCP_port_nums.First;
+                while(one_element != NULL){
+                    current_port = one_element->value;
+                    TCP_IPv4(one_element->value, TCP_ports);
+                    one_element = one_element->next;
+                }
+
+                DisposeList(&TCP_port_nums);
+            }
+            else{                   // only one value
+                current_port = std::stoi(TCP_ports.ports);
+                TCP_IPv4(std::stoi(TCP_ports.ports), TCP_ports);
+            }
         }
     }
-    else{                       // look at simple list of values
-        if(TCP_ports.multiple_values){  // look at multiple values
-            tList TCP_port_nums;
-            InitList(&TCP_port_nums, TCP_ports.ports);
-
-            // iterate and process
-            tElemPtr one_element = TCP_port_nums.First;
-            while(one_element != NULL){
-                current_port = one_element->value;
-                TCP(one_element->value, TCP_ports);
-                one_element = one_element->next;
+    else if(ipv6_flag){
+        if(TCP_ports.has_range){    // look at range
+            // iterate throught the range
+            for(int counter = TCP_ports.from; counter <= TCP_ports.to; counter++){
+                current_port = counter;
+                TCP_IPv6(counter, TCP_ports);
             }
+        }
+        else{                       // look at simple list of values
+            if(TCP_ports.multiple_values){  // look at multiple values
+                tList TCP_port_nums;
+                InitList(&TCP_port_nums, TCP_ports.ports);
 
-            DisposeList(&TCP_port_nums);
+                // iterate and process
+                tElemPtr one_element = TCP_port_nums.First;
+                while(one_element != NULL){
+                    current_port = one_element->value;
+                    TCP_IPv6(one_element->value, TCP_ports);
+                    one_element = one_element->next;
+                }
+
+                DisposeList(&TCP_port_nums);
+            }
+            else{                   // only one value
+                current_port = std::stoi(TCP_ports.ports);
+                TCP_IPv6(std::stoi(TCP_ports.ports), TCP_ports);
+            }
         }
-        else{                   // only one value
-            current_port = std::stoi(TCP_ports.ports);
-            TCP(std::stoi(TCP_ports.ports), TCP_ports);
-        }
+    }
+    else{
+        fprintf(stderr, "Error, no ipv flag\n");
+        exit(INTERNAL_ERROR);
     }
 }
 
@@ -793,31 +1019,62 @@ void process_TCP(struct Ports TCP_ports){
  * 
  */
 void process_UDP(struct Ports UDP_ports){
-    if(UDP_ports.has_range){    // look at range
-        // iterate through the range
-        for(int counter = UDP_ports.from; counter <= UDP_ports.to; counter++){
-            current_port = counter;
-            UDP(counter, UDP_ports);
+    if(ipv4_flag){
+        if(UDP_ports.has_range){    // look at range
+            // iterate through the range
+            for(int counter = UDP_ports.from; counter <= UDP_ports.to; counter++){
+                current_port = counter;
+                UDP_IPv4(counter, UDP_ports);
+            }
+        }
+        else{                       // look at simple list of values
+            if(UDP_ports.multiple_values){  // look at multiple values
+                tList UDP_port_nums;
+                InitList(&UDP_port_nums, UDP_ports.ports);
+
+                // iterate and process
+                tElemPtr one_element = UDP_port_nums.First;
+                while(one_element != NULL){
+                    current_port = one_element->value;
+                    UDP_IPv4(one_element->value, UDP_ports);
+                    one_element = one_element->next;
+                }
+                
+                DisposeList(&UDP_port_nums);
+            }
+            else{                   // only one value
+                current_port = std::stoi(UDP_ports.ports);
+                UDP_IPv4(std::stoi(UDP_ports.ports), UDP_ports);
+            }
         }
     }
-    else{                       // look at simple list of values
-        if(UDP_ports.multiple_values){  // look at multiple values
-            tList UDP_port_nums;
-            InitList(&UDP_port_nums, UDP_ports.ports);
-
-            // iterate and process
-            tElemPtr one_element = UDP_port_nums.First;
-            while(one_element != NULL){
-                current_port = one_element->value;
-                UDP(one_element->value, UDP_ports);
-                one_element = one_element->next;
+    else{
+        if(UDP_ports.has_range){    // look at range
+            // iterate through the range
+            for(int counter = UDP_ports.from; counter <= UDP_ports.to; counter++){
+                current_port = counter;
+                UDP_IPv6(counter, UDP_ports);
             }
-            
-            DisposeList(&UDP_port_nums);
         }
-        else{                   // only one value
-            current_port = std::stoi(UDP_ports.ports);
-            UDP(std::stoi(UDP_ports.ports), UDP_ports);
+        else{                       // look at simple list of values
+            if(UDP_ports.multiple_values){  // look at multiple values
+                tList UDP_port_nums;
+                InitList(&UDP_port_nums, UDP_ports.ports);
+
+                // iterate and process
+                tElemPtr one_element = UDP_port_nums.First;
+                while(one_element != NULL){
+                    current_port = one_element->value;
+                    UDP_IPv6(one_element->value, UDP_ports);
+                    one_element = one_element->next;
+                }
+                
+                DisposeList(&UDP_port_nums);
+            }
+            else{                   // only one value
+                current_port = std::stoi(UDP_ports.ports);
+                UDP_IPv6(std::stoi(UDP_ports.ports), UDP_ports);
+            }
         }
     }
 }
@@ -839,7 +1096,7 @@ int main(int argc, char *argv[]){
     }
     // TCP
     if(arguments.pt_tcp_flag){
-        //process_TCP(arguments.TCP_ports);
+        process_TCP(arguments.TCP_ports);
     }
     // UDP
     if(arguments.pu_udp_flag){

@@ -12,6 +12,7 @@
 \usepackage{graphics}
 \usepackage{pdflscape}
 \usepackage{hyperref}
+\setlength\parindent{0pt}
 \urlstyle{rm}
 
 \begin{document}
@@ -34,28 +35,62 @@ Sabína Gregušová}
 \clearpage
 
 \section{Úvod}
-Mojou úlohou bolo vytvoriť scanner sieťových služieb TCP a UDP v jazyku C alebo C++ a na štandartný výstup vypíše v akom stave sa dané porty nachádzajú.
+Mojou úlohou bolo vytvoriť scanner sieťových služieb TCP a UDP v jazyku C alebo C++, ktorý na štandartný výstup vypíše v akom stave sa zadané porty nachádzajú, pričom možné stavy sú otvorený, uzavretý, alebo filtrovaný.
 
 \section{Riešenie}
-Rozhodla som sa nepoužiť funkciu na automatické parsovanie argumentov, pretože s ňou nemám dobré skúsenosti a preto som si vytvorila triedu, v ktorej si preparsujem argumenty sama a všetky potrebné informácie si uložím do štruktúry \texttt{Ports}, ktorá obsahuje zoznam portov, flagy, ktoré informujú o existencii viacerých portov v zozname alebo označujú, že zoznam má určitý obsah (oddelený pomlčkou), tak ho rovno peparsuje a uloží. Ďaľšími dôležitými údajmi v štruktúre \texttt{Ports} je doménové meno a IP adresa.
+Rozhodla som sa použiť jazyk C++ a využiť jeho objektovú orientáciu. Nepoužila som funkciu na automatické parsovanie argumentov \texttt{getopt()}, pretože s ňou nemám dobré skúsenosti a preto som si vytvorila triedu, v ktorej si preparsujem vstupné argumenty sama. Pre lepšiu manipuláciu so vstupnými dátami som si vytvorila štruktúru \texttt{Ports}, ktorú používam pre oba protokoly TCP a UDP. Štruktúra \texttt{Ports} obsahuje zoznam portov, destination IP, source IP, názov interfacu, názov domény a flagy.
+
+\subsection{Parsovanie argumentov}
+Pri spracovávaní argumentov som brala do úvahy, že na poradí argumentov nezáleží, a preto som rozhodovala o význame argumentu podľa jeho prepínača. Každý argument okrem IP adresy alebo domény má svoj prepínač. Pri zadaní akéhokoľvek argumetu bol daný argument hneď spracovaný a uložený do štruktúry \texttt{Ports}. Najzaujímavejčšou časťou tejto imeplementáie je parsovanie IP adresy alebo domény a interfacu. Keďže je na užívateľovi, či zadá IP adresu alebo doménu, je potrebné zistiť čo bolo zadané a taktiež zistiť chýbajúci druhý údaj. Toto kontrolu robím pomocou regulárnych výrazov, kedy porovnám, či je daný údaj vo formáte \texttt{IPv4} alebo \texttt{IPv6} a ak ani jeden regulárny výraz neuspeje, považujem údaj za doménu a naopak. Interface je nepovinný argument, preto sa defaultne použije interface, ktorý je neloopbackový. Ak je interface zadaný, aj tak sa vykoná kontrola, či je zadaný interface neloopbackový a je možné použiť ho. 
 
 \subsection{Odosielanie paketov}
-Najnáročnejšou časťou projektu bolo určite správne odosielanie paketov. Chvíľku mi trvalo uvedomiť si, že je potrebné posielať raw packety, o ktorých ale na internete nie je veľa informácií ktoré by boli použiteľné a aj funkčné. Za najprínosnejší zdroj pre TCP protokol považujem \cite{tcp_tenouk}, pretože sa zameriava práve na problematiku odosielania raw paketov a správnej tvorby IP a TCP hlavičky. Rovnaká stránka veľmi dobre poslúžila aj s článkom o \cite{udp_tenouk} o UDP, kde bolo potrebné zamerať sa na ICMP, keďže inak bez neho by nebolo možné zistiť stav daného portu.
+raw sockety, o ktorých ale na internete nie je veľa informácií ktoré by boli použiteľné a aj funkčné. Za najprínosnejší zdroj pre TCP protokol považujem \cite{tcp_tenouk}, pretože sa zameriava práve na problematiku odosielania raw paketov a správnej tvorby IP a TCP hlavičky. Rovnaká stránka veľmi dobre poslúžila aj s článkom o \cite{udp_tenouk} o UDP, podľa ktorej som vyplnila IP a UDP hlavičku. 
 
 \subsection{TCP skenovanie}
+Najskôr vyplním IP hlavičku potrebnými údajmi a nadstavím check sum na 0. Po jej vyplnení vypočítam check sum a vyplním TCP hlavičku. V TCP hlavičke dopočítam check sum a ďalej je potrebné nadstaviť príznak \texttt{SYN} na 1, čo značí záujem o začiatok komunikácie. Obe hlavičky vložím do jedného buffera pomocou ukazateľov a pošlem pomocou raw socketu. Keďže protokol TCP očakáva odpoveď, môžu nastať nasledujúce situácie:
 
+\begin{itemize}
+\item príde odpoveď s nadstavenými flagmi pre \texttt{SYN} a \texttt{ACK}, čo značí, že daný port chce pokračovať v handshake-u a je teda otvorený (open)
+\item príde odpoveď s nadstavenými flagmi pre \texttt{RST} a \texttt{ACK}, čo značí, že daný port nechce pokračovať v handhsake-u a je teda uzavretý (closed)
+\item odpoveď nepríde vrámci nadstaveného timeoutu (3 sekundy), pošle sa paket znova a buď príde odpoveď, ktorá sa spracuje podľa bodov uvedených vyššie, alebo odpoveď ani po druhom timeoute (3 sekundy) nedorazí, a port je teda filtrovaný (filtered)
+\end{itemize}
 
 \subsection{UDP skenovanie}
+Najskôr vyplním IP hlavičku potrebnými údajmi a nadstavím check sum na 0. Po jej vyplnení vypočítam check sum a vyplním UDP hlavičku. Keďže je protokol UDP jednoduchší, aj hlavička je jednoduchšia a kratšia. Protokol UDP neočakáva žiadnu odpoveď, a preto rozlišujeme iba 2 možné situácie:
+
+\begin{itemize}
+\item príde odpoveď protokolu ICMP a návratovým kódom 3 (destination unreachable), a daný port je označený za uzavretý (closed)
+\item nepríde odpoveď vrámci timeoutu (3 sekundy) a keďže protokol UDP neočakáva odpoveď, považujeme daný port za otvorený (open)
+\end{itemize}  
+
+Vrámci protokolu UDP teda zisťujeme, či je daný port otvorený alebo uzvaretý, ale nevieme zistiť, či je filtrovaný.
+
+\subsection{Zachytávanie paketov}
+Na zachytávanie paketov som využila knižnicu \texttt{pcap} a logickú štruktúru funkcií som prebrala z \cite{pcap}. Na začiatku je potrebné úspešne inicializovať a nadstaviť filter. Vrámci filtra je možné nadstaviť výraz, na základe ktorého sa budú zachytávať pakety. Rozhodla som sa nadstaviť tento výraz tak, aby ak filter niečo zachytí, bude to určite paket, ktorý očakávam. Toto nadstavenie filtra mi teda dovoluje využiť funkciu \texttt{pcap\_next}, ktorá očakáva chytenie iba jedného paketu. Po využití filtra sú všetky alokované zdroje patrične uvoľnené a každé nadstavenie filtra je kontrolované pre prípadný neúspech.
 
 \section{Testovanie}
-Kvôli náročnosti projektu mi už nezostal čas na vytvorenie automatických testov. Projekt bol preto testovaný iba ručne 
+Kvôli náročnosti projektu mi už bohužiaľ nezostal čas na vytvorenie automatických testov. Projekt som však aktívne testovala už počas implementácie. Pri odosielaní a prijímaní paketov som najčastejšie využívala  program \texttt{Wireshark}, kde som sledovala správnosť paketov, úspečnosť ich odoslania a taktiež to, či daná doména aj odpovedá. Pri overovaní správnosti vyhodnotenia portov som využívala program \texttt{Nmap} od Gordona Lyona, ktorý prijíma na vstupe doménu a porty ktoré chceme vyhodnotiť a určí či sú dané porty otvorené, filtrované, alebo uzavreté.
+
+\section{Ukážka}
+\texttt{vstup:} \\
+\texttt{sudo ./ipk-scan -pt 21,22,143 -pu 53,67 wis.fit.vutbr.cz}\\
+
+\texttt{výstup:}\\
+\texttt{Interesting ports on wis.fit.vutbr.cz (147.229.9.21):}\\
+\texttt{PORT	STATE}\\
+\texttt{21/tcp	closed}\\
+\texttt{22/tcp	open}\\
+\texttt{143/tcp	closed}\\
+\texttt{53/udp	open}\\
+\texttt{67/udp	open}
+
 
 \section{Záver}
-Tento projekt považujem za jeden z najnáročnejších projektov na FIT VUT. So sieťami som pred tým nemala vôbec žiadne skúsenosti a hoci mi učivo prišlo veľmi zaujímavé a podstate zadania som rozumela, bolo veľmi náročné zistiť ako všetko v jazyku C/C++ funguje.
+Tento projekt považujem za jeden z najnáročnejších projektov na FIT VUT. So sieťami som pred tým nemala vôbec žiadne skúsenosti a práve o tejto špecifickej problematike použitia raw socketov bolo náročné nájsť použiteľné informácie. Napriek náročnosti projektu som rada, že som to na začiatku nevzdala, pretože mi jeho implementácia veľmi podrobne priblížila ako siete skutočne fungujú a určite som sa z neho mnohé naučila.
 
 \newpage
 \bibliographystyle{czechiso}
-\renewcommand{\refname}{Použitá literatúra}
+\renewcommand{\refname}{Použité zdroje}
 \bibliography{manual}
 
 \end{document}

@@ -7,9 +7,12 @@
 #define SNAP_LEN 1518
 #define SIZE_ETHERNET 14
 #define PCKT_LEN 8192
+#define IPV6PCKT_LEN 2000
 
 pcap_t *handle;
 int current_port;
+bool ipv4_flag = false;
+bool ipv6_flag = false;
 
 /**
  * https://stackoverflow.com/questions/51662138/tcp-syn-flood-using-raw-socket-in-ubuntu?fbclid=IwAR0lXO0WlhnHh2dx71zecLolnA-57aUgcPDsDCVkLJnL2l9eZHteotcZw6c
@@ -36,6 +39,20 @@ struct pseudo_header_udp
      
     struct udphdr udp;
 };
+
+struct ipv6_header
+{
+    unsigned int
+        version : 4,
+        traffic_class : 8,
+        flow_label : 20;
+    uint16_t length;
+    uint8_t  next_header;
+    uint8_t  hop_limit;
+    struct in6_addr src;
+    struct in6_addr dst;
+};
+
 
 /**
  * @brief structure Ports for input arguments
