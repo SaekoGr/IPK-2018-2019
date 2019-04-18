@@ -633,7 +633,7 @@ void TCP_IPv4(int order_num, struct Ports real_ports){
     struct tcphdr *tcp_header;
 
     // preparing the filter string
-    std::string filter_exp = "tcp and dst port 1234";
+    std::string filter_exp = "tcp and dst port 1234 and src port " + std::to_string(order_num) + " and src host " + real_ports.dest_ip + " and dst host " + real_ports.source_ip;
     //std::cout << filter_exp << std::endl;
     
     // get network number and mask
@@ -841,7 +841,7 @@ void UDP_IPv4(int order_num, struct Ports real_ports){
     struct udphdr *udph = (struct udphdr *)(buffer + sizeof(iphdr));
 
     // preparing the filter string
-    filter_exp = "icmp"; //"and dst host " + real_ports.source_ip;
+    filter_exp = "icmp and dst host " + real_ports.source_ip + " and src host " + real_ports.dest_ip;
     //std::cout << filter_exp << std::endl;
 
     // get network number and mask
@@ -934,7 +934,7 @@ void UDP_IPv4(int order_num, struct Ports real_ports){
         std::cout << order_num << "/udp\topen" << std::endl;
     }
     else{
-        //printf("I found it\n");
+        alarm(0);
         std::cout << order_num << "/udp\tclosed" << std::endl;
     }
 
