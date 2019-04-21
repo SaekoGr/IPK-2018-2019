@@ -853,6 +853,9 @@ void TCP_IPv6(int order_num, struct Ports real_ports){
  * @source https://www.tenouk.com/Module43b.html
  * @author couldn't resolve
  * 
+ * @source https://stackoverflow.com/questions/51662138/tcp-syn-flood-using-raw-socket-in-ubuntu?fbclid=IwAR0lXO0WlhnHh2dx71zecLolnA-57aUgcPDsDCVkLJnL2l9eZHteotcZw6c
+ * @author zx485
+ * 
  * Catching the response pakets
  * @source https://www.devdungeon.com/content/using-libpcap-c
  * @author couldn't resolve

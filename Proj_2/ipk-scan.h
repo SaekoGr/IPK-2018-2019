@@ -35,32 +35,78 @@
 #include <csignal>
 
 /**
- * http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
- * Súbor: tcp6_ll.c 
+ * Sending TCP with IPv6
+ * @source http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
+ * @author P. David Buchan
+ * @email pdbuchan@yahoo.com
+ * @released March 6, 2015
+ * @file tcp6_ll.c
  */
 #define TCP_HDRLEN 20  // TCP header length, excludes options data
+
+/**
+ * Sending TCP with IPv6
+ * @source http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
+ * @author P. David Buchan
+ * @email pdbuchan@yahoo.com
+ * @released March 6, 2015
+ * @file tcp6_ll.c
+ */
 #define ETH_HDRLEN 14  // Ethernet header length
+
+/**
+ * Sending TCP with IPv6
+ * @source http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
+ * @author P. David Buchan
+ * @email pdbuchan@yahoo.com
+ * @released March 6, 2015
+ * @file tcp6_ll.c
+ */
 #define IP6_HDRLEN 40  // IPv6 header length
+
+/**
+ * Sending UDP with IPv6
+ * @source http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
+ * @author P. David Buchan
+ * @email pdbuchan@yahoo.com
+ * @released March 6, 2015
+ * @file udp6_ll.c
+ */
 #define UDP_HDRLEN  8  // UDP header length, excludes data
 
+// my parameters
 #define NO_PARAMETERS 0
 #define TOO_MANY_PARAMETERS 6
 #define OK 0
 #define ARG_INVALID 1
 #define INTERNAL_ERROR 2
-#define MAXLINE 1024
-#define SNAP_LEN 1518
-#define SIZE_ETHERNET 14
-#define PCKT_LEN 8192
-#define IPV6PCKT_LEN 2000
 
+/**
+ * Catching the response pakets
+ * @source https://www.devdungeon.com/content/using-libpcap-c
+ * @author couldn't resolve
+ */
+#define SNAP_LEN 1518
+
+/**
+ * Sending TCP with IPv4
+ * @source https://www.tenouk.com/Module43a.html
+ * @author couldn't resolve
+ */
+#define PCKT_LEN 8192
+
+
+// my global variables
 pcap_t *handle;
 int current_port;
 bool ipv4_flag = false;
 bool ipv6_flag = false;
 
 /**
- * https://stackoverflow.com/questions/51662138/tcp-syn-flood-using-raw-socket-in-ubuntu?fbclid=IwAR0lXO0WlhnHh2dx71zecLolnA-57aUgcPDsDCVkLJnL2l9eZHteotcZw6c
+ * @brief pseudo_header for tcp
+ * 
+ * @source https://stackoverflow.com/questions/51662138/tcp-syn-flood-using-raw-socket-in-ubuntu?fbclid=IwAR0lXO0WlhnHh2dx71zecLolnA-57aUgcPDsDCVkLJnL2l9eZHteotcZw6c
+ * @author zx485
  */
 struct pseudo_header_tcp   
 {
@@ -73,7 +119,12 @@ struct pseudo_header_tcp
     struct tcphdr tcp;
 };
 
-
+/**
+ * @brief pseudo_header for udp
+ * 
+ * @source https://stackoverflow.com/questions/51662138/tcp-syn-flood-using-raw-socket-in-ubuntu?fbclid=IwAR0lXO0WlhnHh2dx71zecLolnA-57aUgcPDsDCVkLJnL2l9eZHteotcZw6c
+ * @author zx485
+ */
 struct pseudo_header_udp   
 {
     unsigned int source_address;
@@ -85,18 +136,6 @@ struct pseudo_header_udp
     struct udphdr udp;
 };
 
-struct ipv6_header
-{
-    unsigned int
-        version : 4,
-        traffic_class : 8,
-        flow_label : 20;
-    uint16_t length;
-    uint8_t  next_header;
-    uint8_t  hop_limit;
-    struct in6_addr src;
-    struct in6_addr dst;
-};
 
 
 /**
@@ -115,7 +154,7 @@ struct Ports{
 };
 
 /**
- * 
+ * @brief structure that contains value and pointer to next element
  */
 typedef struct tElem{
     struct tElem *next;
@@ -123,7 +162,7 @@ typedef struct tElem{
 } *tElemPtr;
 
 /**
- * 
+ * @brief help structure for list of ports
  */
 typedef struct{
     tElemPtr First;
@@ -140,7 +179,7 @@ typedef struct{
  * @source https://github.com/SaekoGr/IAL-2018-2019/blob/master/ial_2018_du1/c201/c201.c
  * @author Sabína Gregušová (xgregu02) for IAL
  */
-void DisposeList(tList *L)
+void DisposeList(tList *L);
 
 /**
  * @brief initializes list L
