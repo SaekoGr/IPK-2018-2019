@@ -486,7 +486,11 @@ void write_domain_header(std::string domain_name, std::string ip_address){
 }
 
 /**
- * @brief oficial check sum for headers
+ * @brief oficial check sum for headers (IPv4)
+ * 
+ * @param ptr
+ * @param nbytes
+ * @return unsigned short
  * 
  * @source https://stackoverflow.com/questions/51662138/tcp-syn-flood-using-raw-socket-in-ubuntu?fbclid=IwAR0lXO0WlhnHh2dx71zecLolnA-57aUgcPDsDCVkLJnL2l9eZHteotcZw6c
  * @author: zx485
@@ -527,8 +531,20 @@ void alarm_handler(int sig){
 /**
  * @brief function for handling TCP for IPv6
  * 
+ * @param order_num number of port to be scanned
+ * @param real_ports structure for TCP containing all the necessary information
+ * 
+ * Sending TCP with IPv6
  * @source http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
+ * @author P. David Buchan
+ * @email pdbuchan@yahoo.com
+ * @released March 6, 2015
  * @file tcp6_ll.c
+ * 
+ * Catching the response pakets
+ * @source https://www.devdungeon.com/content/using-libpcap-c
+ * @author couldn't resolve
+ * 
  */
 void TCP_IPv6(int order_num, struct Ports real_ports){
 
@@ -555,7 +571,6 @@ void TCP_IPv6(int order_num, struct Ports real_ports){
 
     // preparing the filter string
     std::string filter_exp = "tcp and dst port 1234 and src port " + std::to_string(order_num) + " and src host " + real_ports.dest_ip + " and dst host " + real_ports.source_ip;
-    //std::cout << filter_exp << std::endl;
     
     // get network number and mask
     if(pcap_lookupnet(real_ports.interface.c_str(), &net, &mask, error_buffer) == -1){
@@ -829,12 +844,21 @@ void TCP_IPv6(int order_num, struct Ports real_ports){
 }
 
 /**
- * https://www.tenouk.com/Module43b.html
- * https://www.devdungeon.com/content/using-libpcap-c
+ * @brief function for handling TCP for IPv4
+ * 
+ * @param order_num number of port to be scanned
+ * @param real_ports structure for TCP containing all the necessary information
+ * 
+ * Sending TCP with IPv4
+ * @source https://www.tenouk.com/Module43b.html
+ * @author couldn't resolve
+ * 
+ * Catching the response pakets
+ * @source https://www.devdungeon.com/content/using-libpcap-c
+ * @author couldn't resolve
+ * 
  */
 void TCP_IPv4(int order_num, struct Ports real_ports){
-    //printf("SRC: %s\nDST: %s\n", real_ports.source_ip.c_str(), real_ports.dest_ip.c_str());
-    //std::cout << order_num << "/tcp\t" << std::endl;
 
     char error_buffer[PCAP_ERRBUF_SIZE];
     const u_char *packet;
@@ -850,7 +874,6 @@ void TCP_IPv4(int order_num, struct Ports real_ports){
 
     // preparing the filter string
     std::string filter_exp = "tcp and dst port 1234 and src port " + std::to_string(order_num) + " and src host " + real_ports.dest_ip + " and dst host " + real_ports.source_ip;
-    //std::cout << filter_exp << std::endl;
     
     // get network number and mask
     if(pcap_lookupnet(real_ports.interface.c_str(), &net, &mask, error_buffer) == -1){
@@ -1019,14 +1042,26 @@ void TCP_IPv4(int order_num, struct Ports real_ports){
     pcap_freecode(&fp);
     pcap_close(handle);
     close(raw_socket);
-
-    // print the output
-    //std::cout << order_num << "/tcp\t" << std::endl;
 }
 
+
 /**
- * http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
- * Súbor: udp6_ll.c
+ * @brief function for handling UDP for IPv6
+ * 
+ * @param order_num number of port to be scanned
+ * @param real_ports structure for UDP containing all the necessary information
+ * 
+ * Sending UDP with IPv6
+ * @source http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
+ * @author P. David Buchan
+ * @email pdbuchan@yahoo.com
+ * @released March 6, 2015
+ * @file udp6_ll.c
+ * 
+ * Catching the response pakets
+ * @source https://www.devdungeon.com/content/using-libpcap-c
+ * @author couldn't resolve
+ * 
  */
 void UDP_IPv6(int order_num, struct Ports real_ports){
 
@@ -1270,7 +1305,19 @@ void UDP_IPv6(int order_num, struct Ports real_ports){
 }
 
 /**
- * https://www.root.cz/clanky/sokety-a-c-raw-soket/
+ * @brief function for handling TCP for IPv4
+ * 
+ * @param order_num number of port to be scanned
+ * @param real_ports structure for TCP containing all the necessary information
+ * 
+ * Sending TCP with IPv4
+ * @source https://www.tenouk.com/Module43a.html
+ * @author couldn't resolve
+ * 
+ * Catching the response pakets
+ * @source https://www.devdungeon.com/content/using-libpcap-c
+ * @author couldn't resolve
+ * 
  */
 void UDP_IPv4(int order_num, struct Ports real_ports){
     //std::cout << order_num << "/udp\t" << std::endl;
@@ -1394,12 +1441,12 @@ void UDP_IPv4(int order_num, struct Ports real_ports){
     pcap_close(handle);
     close(raw_socket);
 
-
-    //std::cout << order_num << "/udp\t" << std::endl;
 }
 
 /**
+ * @brief goes through the port range and sends it to process 
  * 
+ * @param TCP_ports structure that contains necessary information for TCP protocol
  */
 void process_TCP(struct Ports TCP_ports){
     if(ipv4_flag){
@@ -1467,7 +1514,9 @@ void process_TCP(struct Ports TCP_ports){
 }
 
 /**
+ * @brief goes through the port range and sends it to process 
  * 
+ * @param UDP_ports structure that contains necessary information for UDP protocol
  */
 void process_UDP(struct Ports UDP_ports){
     if(ipv4_flag){
@@ -1558,8 +1607,18 @@ int main(int argc, char *argv[]){
 }
 
 /**
- * http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
- * Súbor: tcp6_ll.c 
+ * @brief help function for checksum (IPv6)
+ * 
+ * @param addr given address
+ * @param len given length
+ * 
+ * @return pointer to uint16_t
+ * 
+ * @source http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
+ * @author P. David Buchan
+ * @email pdbuchan@yahoo.com
+ * @released March 6, 2015
+ * @file udp6_ll.c
  */
 uint16_t
 checksum (uint16_t *addr, int len)
@@ -1593,11 +1652,18 @@ checksum (uint16_t *addr, int len)
 }
 
 /**
- * http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
- * Súbor: tcp6_ll.c 
+ * @brief allocates memory for an array of chars
+ * 
+ * @param len given length
+ * 
+ * @return pointer to char
+ * 
+ * @source http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
+ * @author P. David Buchan
+ * @email pdbuchan@yahoo.com
+ * @released March 6, 2015
+ * @file tcp6_ll.c
  */
-
-// Allocate memory for an array of chars.
 char *
 allocate_strmem (int len)
 {
@@ -1619,11 +1685,18 @@ allocate_strmem (int len)
 }
 
 /**
- * http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
- * Súbor: tcp6_ll.c 
+ * @brief allocates memory for an array of unsigned chars
+ * 
+ * @param len given length
+ * 
+ * @return pointer to uint8_t
+ * 
+ * @source http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
+ * @author P. David Buchan
+ * @email pdbuchan@yahoo.com
+ * @released March 6, 2015
+ * @file tcp6_ll.c
  */
-
-// Allocate memory for an array of unsigned chars.
 uint8_t *
 allocate_ustrmem (int len)
 {
@@ -1645,11 +1718,19 @@ allocate_ustrmem (int len)
 }
 
 /**
- * http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
- * Súbor: tcp6_ll.c 
+ * @brief allocates memory for an array of ints
+ * 
+ * @param len given length
+ * 
+ * @return pointer to integer
+ * 
+ * @source http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
+ * @author P. David Buchan
+ * @email pdbuchan@yahoo.com
+ * @released March 6, 2015
+ * @file tcp6_ll.c
  */
 
-// Allocate memory for an array of ints.
 int *
 allocate_intmem (int len)
 {
@@ -1671,11 +1752,19 @@ allocate_intmem (int len)
 }
 
 /**
- * http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
- * Súbor: tcp6_ll.c 
+ * @brief builds IPv6 TCP pseudo-header and call checksum function (Section 8.1 of RFC 2460).
+ * 
+ * @param iphdr IP header
+ * @param tcphdr TCP header
+ * 
+ * @return calculated checksum
+ * 
+ * @source http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
+ * @author P. David Buchan
+ * @email pdbuchan@yahoo.com
+ * @released March 6, 2015
+ * @file tcp6_ll.c
  */
-
-// Build IPv6 TCP pseudo-header and call checksum function (Section 8.1 of RFC 2460).
 uint16_t
 tcp6_checksum (struct ip6_hdr iphdr, struct tcphdr tcphdr)
 {
@@ -1766,11 +1855,21 @@ tcp6_checksum (struct ip6_hdr iphdr, struct tcphdr tcphdr)
 
 
 /**
- * http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
- * Súbor: tcp6_ll.c 
+ * @brief builds IPv6 UDP pseudo-header and call checksum function (Section 8.1 of RFC 2460).
+ * 
+ * @param iphdr IP header
+ * @param tcphdr UDP header
+ * @param payload data
+ * @param payloadlen length of data
+ * 
+ * @return calculated checksum
+ * 
+ * @source http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
+ * @author P. David Buchan
+ * @email pdbuchan@yahoo.com
+ * @released March 6, 2015
+ * @file tcp6_ll.c
  */
-
-// Build IPv6 UDP pseudo-header and call checksum function (Section 8.1 of RFC 2460).
 uint16_t
 udp6_checksum (struct ip6_hdr iphdr, struct udphdr udphdr, uint8_t *payload, int payloadlen)
 {
@@ -1839,6 +1938,5 @@ udp6_checksum (struct ip6_hdr iphdr, struct udphdr udphdr, uint8_t *payload, int
     ptr++;
     chksumlen++;
   }
-
   return checksum ((uint16_t *) buf, chksumlen);
 }
