@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS=-std=c++11 -Wall -Wextra
+CFLAGS=-std=c++11 -Wextra
 LFLAGS=-lpthread
 LDFLAGS=-lrt -lpcap
 all:

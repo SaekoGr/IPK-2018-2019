@@ -1,36 +1,18 @@
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <iostream>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#include <netinet/ip.h>
-#include <netinet/tcp.h>
-#include <netinet/udp.h>
-#include <netinet/ip_icmp.h>
-#include <linux/if_packet.h>
-#include <net/ethernet.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <ifaddrs.h>
-#include <linux/if_link.h>
-#include <sys/ioctl.h>
-#include <net/if.h>
-#include <regex>
-#include <pcap.h>
-#include <csignal>
-
+/**
+ * Project no. 2 for IPK
+ * Name: ipk-scan.cpp
+ * Language: C++
+ * Author: Sabína Gregušová (xgregu02)
+ */
 
 #include "ipk-scan.h"
-
 
 /**
  * @brief class for parsing the input arguments
  */
 class InputArgument{
     public:
+        // necessary variables
         bool pt_tcp_flag = false;
         bool pu_udp_flag = false;
         bool interface_flag = false;
@@ -40,6 +22,7 @@ class InputArgument{
         std::string interface_ip;
         std::string interface_name;
         std::string source_ip;
+        // structure for both TCP and UDP
         Ports TCP_ports;
         Ports UDP_ports;
         
@@ -121,24 +104,24 @@ class InputArgument{
             // gets the interface
             this->get_interface();
 
-            // saves source and destination IP addresses
+            // saves all necessary information
             TCP_ports.source_ip.assign(this->interface_ip.c_str());
             UDP_ports.source_ip.assign(this->interface_ip.c_str());
             TCP_ports.dest_ip.assign(this->ip_address.c_str());
             UDP_ports.dest_ip.assign(this->ip_address.c_str());
             TCP_ports.interface.assign(this->interface_name.c_str());
             UDP_ports.interface.assign(this->interface_name.c_str());
-            //this->debug();
-            //printf("SRC: %s\nDST: %s\n\n", TCP_ports.source_ip.c_str(), TCP_ports.dest_ip.c_str());
-            //printf("SRC: %s\nDST: %s\n\n", UDP_ports.source_ip.c_str(), UDP_ports.dest_ip.c_str());
+            TCP_ports.domain_name.assign(this->domain_name.c_str());
+            UDP_ports.domain_name.assign(this->domain_name.c_str());
         }
 
     private:
 
         /**
-         * @brief checks the interface input or sets the default loopback interface
+         * @brief checks the interface input or sets the default nonloopback interface
          * 
          * @source http://man7.org/linux/man-pages/man3/getifaddrs.3.html
+         * @author couldn't resolve
          */
         void get_interface(){
             struct ifaddrs* ifaddr, *ifa;
@@ -195,15 +178,9 @@ class InputArgument{
                 }
                 else{   // check whether given interface exists
                     if(strcmp(this->interface_name.c_str(), ifa->ifa_name) == 0){
-                        if(!(ifa->ifa_flags & IFF_LOOPBACK)){
-                            found = true;
-                            this->interface_ip.assign(host);
-                            break;
-                        }
-                        else{   // should not be loopback
-                            fprintf(stderr, "Input address is loopback\n");
-                            exit(INTERNAL_ERROR);
-                        }
+                        found = true;
+                        this->interface_ip.assign(host);
+                        break;
                     }
                 }
                 
@@ -328,10 +305,12 @@ class InputArgument{
          */
         bool is_ip(char* value){
             // IPv4
+            // source : http://ipregex.com/
             if(std::regex_match(value, std::regex("^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])[.]){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$"))){
                 ipv4_flag = true;
                 return true;
             } // IPv6
+            // source : https://www.phpliveregex.com/learn/system-administration/how-to-match-ip-addresses/
             else if(std::regex_match(value, std::regex("(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])[.]){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])[.]){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))"))){
                 ipv6_flag = true;
                 return true;
@@ -359,7 +338,10 @@ class InputArgument{
         /**
          * @brief convert ip address to domain name
          * 
-         * https://beej.us/guide/bgnet/html/multi/gethostbynameman.html
+         * @source https://beej.us/guide/bgnet/html/multi/gethostbynameman.html
+         * @author Brian "Beej Jorgensen" Hall
+         * @version 3.0.21
+         * @published June 8, 2016
          */
         void ip_to_hostname(){
             struct hostent *he;
@@ -387,7 +369,8 @@ class InputArgument{
         /**
          * @brief converts domain name to ip address (IPV4 by default)
          * 
-         * http://www.zedwood.com/article/cpp-dns-lookup-ipv4-and-ipv6
+         * @source http://www.zedwood.com/article/cpp-dns-lookup-ipv4-and-ipv6
+         * @author couldn't resolve
          */
         void hostname_to_ip(){
             struct addrinfo hints, *res, *p;
@@ -421,19 +404,15 @@ class InputArgument{
             // adding the resolved ip address
             this->ip_address.assign(ip_address);
         }
-
-        void debug(){
-            std::cout << "Domain " << domain_name << std::endl;
-            std::cout << "TCP " << TCP_ports.ports << " range: " << TCP_ports.has_range << " multiple values: " << TCP_ports.multiple_values << std::endl;
-            std::cout << "UDP " << UDP_ports.ports << " range: " << UDP_ports.has_range << " multiple values: " << UDP_ports.multiple_values << std::endl;
-        }
-
 };
 
 /**
  * @brief disposes of list L
  * 
  * @param L - list containing dynamically allocated numbers of ports
+ * 
+ * @source https://github.com/SaekoGr/IAL-2018-2019/blob/master/ial_2018_du1/c201/c201.c
+ * @author Sabína Gregušová (xgregu02) for IAL
  */
 void DisposeList(tList *L){
     L->Last = NULL;
@@ -450,7 +429,10 @@ void DisposeList(tList *L){
  * @brief initializes list L
  * 
  * @param L - list to be dynamically allocated
- * @param value_list - 
+ * @param value_list - list of ports to be scanned
+ * 
+ * @source https://github.com/SaekoGr/IAL-2018-2019/blob/master/ial_2018_du1/c201/c201.c
+ * @author Sabína Gregušová (xgregu02) for IAL
  */
 void InitList(tList *L, std::string value_list){
     L->First = NULL;
@@ -504,7 +486,10 @@ void write_domain_header(std::string domain_name, std::string ip_address){
 }
 
 /**
- * https://stackoverflow.com/questions/51662138/tcp-syn-flood-using-raw-socket-in-ubuntu?fbclid=IwAR0lXO0WlhnHh2dx71zecLolnA-57aUgcPDsDCVkLJnL2l9eZHteotcZw6c
+ * @brief oficial check sum for headers
+ * 
+ * @source https://stackoverflow.com/questions/51662138/tcp-syn-flood-using-raw-socket-in-ubuntu?fbclid=IwAR0lXO0WlhnHh2dx71zecLolnA-57aUgcPDsDCVkLJnL2l9eZHteotcZw6c
+ * @author: zx485
  */
 unsigned short csum(unsigned short *ptr,int nbytes) {
     long sum;
@@ -529,87 +514,318 @@ unsigned short csum(unsigned short *ptr,int nbytes) {
     return(answer);
 }
 
-
+/**
+ * @brief function for breaking the loop
+ * 
+ * @sig number of second for waiting
+ */
 void alarm_handler(int sig){
     sig = 0;
     pcap_breakloop(handle);
 }
 
 /**
+ * @brief function for handling TCP for IPv6
  * 
+ * @source http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
+ * @file tcp6_ll.c
  */
 void TCP_IPv6(int order_num, struct Ports real_ports){
-    //printf("SRC: %s\nDST: %s\n", real_ports.source_ip.c_str(), real_ports.dest_ip.c_str());
-    return;
 
+    int i, sd, status, frame_length, raw_socket, bytes, *tcp_flags;
+    char *interface, *target, *src_ip, *dst_ip;
+    struct ip6_hdr iphdr;
+    struct tcphdr tcphdr;
+    uint8_t *src_mac, *dst_mac, *ether_frame;
+    struct addrinfo hints, *res;
+    struct sockaddr_in6 *ipv6;
+    struct sockaddr_ll device;
+    struct ifreq ifr;
+    void *tmp;
+    struct bpf_program fp;
+    bpf_u_int32 mask;
+    bpf_u_int32 net;
     char error_buffer[PCAP_ERRBUF_SIZE];
-    unsigned char buffer[IPV6PCKT_LEN];
-    struct sockaddr_in6 din;
-    struct ipv6_header *ip = (struct ipv6_header*) buffer;
-    //int size = sizeof(struct ipv6_header);
-    struct tcphdr *tcph = (struct tcphdr *) (buffer + sizeof (struct ipv6_header));
+    const u_char *packet;
+    struct pcap_pkthdr packet_header;
+    int ethernet_header_length = 14;
+    int ip_header_length;
+    const u_char *ip_header;
+    struct tcphdr *tcp_header;
 
-    // clear the buffer
-    memset(buffer, 0, IPV6PCKT_LEN);
+    // preparing the filter string
+    std::string filter_exp = "tcp and dst port 1234 and src port " + std::to_string(order_num) + " and src host " + real_ports.dest_ip + " and dst host " + real_ports.source_ip;
+    //std::cout << filter_exp << std::endl;
+    
+    // get network number and mask
+    if(pcap_lookupnet(real_ports.interface.c_str(), &net, &mask, error_buffer) == -1){
+        fprintf(stderr, "Couldn't get netmask for device %s : %s\n", real_ports.interface.c_str(), error_buffer);
+        net = 0;
+        mask = 0;
+    }
 
-    din.sin6_port = 0;
-    din.sin6_family = AF_INET6;
-    inet_pton(AF_INET6, real_ports.dest_ip.c_str(), &(din.sin6_addr));
+    // open handle for given interface, non-promiscuous mode, timeout 2.5 seconds
+    handle = pcap_open_live(real_ports.interface.c_str(), SNAP_LEN, 0, 2500, error_buffer);
+    if(handle == NULL){
+        fprintf(stderr, "Couldn't open device %s\n: %s\n", real_ports.interface.c_str(), error_buffer);
+        exit(INTERNAL_ERROR);
+    }
 
-    // filling in the IP header
-    ip->version = 6;
-    ip->traffic_class = 0;
-    ip->flow_label = 0;
-    ip->length = 40;
-    ip->next_header = 6; // next layer is TCP
-    ip->hop_limit = 64;
-    inet_pton(AF_INET6, real_ports.dest_ip.c_str(), &(ip->dst));
-    inet_pton(AF_INET6, real_ports.source_ip.c_str(),&(ip->src));
+    // Allocate memory for various arrays.
+    src_mac = allocate_ustrmem (6);
+    dst_mac = allocate_ustrmem (6);
+    ether_frame = allocate_ustrmem (IP_MAXPACKET);
+    interface = allocate_strmem (40);
+    target = allocate_strmem (INET6_ADDRSTRLEN);
+    src_ip = allocate_strmem (INET6_ADDRSTRLEN);
+    dst_ip = allocate_strmem (INET6_ADDRSTRLEN);
+    tcp_flags = allocate_intmem (8);
 
-    // filling the TCP header
-    tcph->source = htons(1234);
-    tcph->dest = htons(order_num);
-    tcph->seq = 0;
-    tcph->ack_seq = 0;
-    tcph->doff = 5;
-    tcph->fin = 0;
-    tcph->syn = 1;
-    tcph->rst=0;
-    tcph->psh=0;
-    tcph->ack=0;
-    tcph->urg=0;
-    tcph->window = htons(5840);
-    tcph->check = 0;
-    tcph->urg_ptr = 0;
+    // Interface to send packet through.
+    strcpy (interface, real_ports.interface.c_str());
 
-    int raw_socket;
+    // Submit request for a socket descriptor to look up interface.
+    if ((sd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
+        perror ("socket() failed to get socket descriptor for using ioctl() ");
+        exit(INTERNAL_ERROR);
+    }
 
+    // Use ioctl() to look up interface name and get its MAC address.
+    memset (&ifr, 0, sizeof (ifr));
+    snprintf (ifr.ifr_name, sizeof (ifr.ifr_name), "%s", interface);
+    if (ioctl (sd, SIOCGIFHWADDR, &ifr) < 0) {
+        perror ("ioctl() failed to get source MAC address ");
+        exit(INTERNAL_ERROR);
+    }
+    close (sd);
+
+    // Copy source MAC address.
+    memcpy (src_mac, ifr.ifr_hwaddr.sa_data, 6 * sizeof (uint8_t));
+
+    // Find interface index from interface name and store index in
+    // struct sockaddr_ll device, which will be used as an argument of sendto().
+    memset (&device, 0, sizeof (device));
+    if ((device.sll_ifindex = if_nametoindex (real_ports.interface.c_str())) == 0) {
+        perror ("if_nametoindex() failed to obtain interface index ");
+        exit (EXIT_FAILURE);
+    }
+
+    // Set destination MAC address: you need to fill these out
+    dst_mac[0] = 0xff;
+    dst_mac[1] = 0xff;
+    dst_mac[2] = 0xff;
+    dst_mac[3] = 0xff;
+    dst_mac[4] = 0xff;
+    dst_mac[5] = 0xff;
+
+    // Source IPv6 address: you need to fill this out
+    strcpy (src_ip, real_ports.source_ip.c_str());
+
+    // Destination URL or IPv6 address: you need to fill this out
+    strcpy (target, real_ports.domain_name.c_str());
+
+    // Fill out hints for getaddrinfo().
+    memset (&hints, 0, sizeof (struct addrinfo));
+    hints.ai_family = AF_INET6;
+    hints.ai_socktype = SOCK_RAW;
+    hints.ai_flags = hints.ai_flags | AI_CANONNAME;
+
+    // Resolve target using getaddrinfo().
+    if ((status = getaddrinfo (target, NULL, &hints, &res)) != 0) {
+        fprintf (stderr, "getaddrinfo() failed: %s\n", gai_strerror (status));
+        exit (EXIT_FAILURE);
+    }
+    ipv6 = (struct sockaddr_in6 *) res->ai_addr;
+    tmp = &(ipv6->sin6_addr);
+    if (inet_ntop (AF_INET6, tmp, dst_ip, INET6_ADDRSTRLEN) == NULL) {
+        status = errno;
+        fprintf (stderr, "inet_ntop() failed.\nError message: %s\n", strerror (status));
+        exit (EXIT_FAILURE);
+    }
+    freeaddrinfo (res);
+
+    // fill out sockaddr_ll
+    device.sll_family = AF_PACKET;
+    memcpy(device.sll_addr, src_mac, 6* sizeof(uint8_t));
+    device.sll_halen = 6;
+
+    // IPv6 header
+    // IPv6 version (4 bits), Traffic class (8 bits), Flow label (20 bits)
+    iphdr.ip6_flow = htonl ((6 << 28) | (0 << 20) | 0);
+    // Payload length (16 bits): TCP header
+    iphdr.ip6_plen = htons (TCP_HDRLEN);
+    // Next header (8 bits): 6 for TCP
+    iphdr.ip6_nxt = IPPROTO_TCP;
+    // Hop limit (8 bits): default to maximum value
+    iphdr.ip6_hops = 255;
+
+
+    // Source IPv6 address (128 bits)
+    if ((status = inet_pton (AF_INET6, src_ip, &(iphdr.ip6_src))) != 1) {
+        fprintf (stderr, "inet_pton() failed.\nError message: %s\n", strerror (status));
+        exit (EXIT_FAILURE);
+    }
+
+    // Destination IPv6 address (128 bits)
+    if ((status = inet_pton (AF_INET6, dst_ip, &(iphdr.ip6_dst))) != 1) {
+        fprintf (stderr, "inet_pton() failed.\nError message: %s\n", strerror (status));
+        exit (EXIT_FAILURE);
+    }
+
+    // TCP header
+    // Source port number (16 bits)
+    tcphdr.th_sport = htons (1234);
+    // Destination port number (16 bits)
+    tcphdr.th_dport = htons (order_num);
+    // Sequence number (32 bits)
+    tcphdr.th_seq = htonl (0);
+    // Acknowledgement number (32 bits): 0 in first packet of SYN/ACK process
+    tcphdr.th_ack = htonl (0);
+    // Reserved (4 bits): should be 0
+    tcphdr.th_x2 = 0;
+    // Data offset (4 bits): size of TCP header in 32-bit words
+    tcphdr.th_off = TCP_HDRLEN / 4;
+    // Flags (8 bits)
+    // FIN flag (1 bit)
+    tcp_flags[0] = 0;
+    // SYN flag (1 bit): set to 1
+    tcp_flags[1] = 1;
+    // RST flag (1 bit)
+    tcp_flags[2] = 0;
+    // PSH flag (1 bit)
+    tcp_flags[3] = 0;
+    // ACK flag (1 bit)
+    tcp_flags[4] = 0;
+    // URG flag (1 bit)
+    tcp_flags[5] = 0;
+    // ECE flag (1 bit)
+    tcp_flags[6] = 0;
+    // CWR flag (1 bit)
+    tcp_flags[7] = 0;
+
+    tcphdr.th_flags = 0;
+    for (i=0; i<8; i++) {
+        tcphdr.th_flags += (tcp_flags[i] << i);
+    }
+
+    // Window size (16 bits)
+    tcphdr.th_win = htons (65535);
+    // Urgent pointer (16 bits): 0 (only valid if URG flag is set)
+    tcphdr.th_urp = htons (0);
+    // TCP checksum (16 bits)
+    tcphdr.th_sum = tcp6_checksum (iphdr, tcphdr);
+
+    // Fill out ethernet frame header.
+
+    // Ethernet frame length = ethernet header (MAC + MAC + ethernet type) + ethernet data (IP header + TCP header)
+    frame_length = 6 + 6 + 2 + IP6_HDRLEN + TCP_HDRLEN;
+
+    // Destination and Source MAC addresses
+    memcpy (ether_frame, dst_mac, 6 * sizeof (uint8_t));
+    memcpy (ether_frame + 6, src_mac, 6 * sizeof (uint8_t));
+
+    // Next is ethernet type code (ETH_P_IPV6 for IPv6).
+    // http://www.iana.org/assignments/ethernet-numbers
+    ether_frame[12] = ETH_P_IPV6 / 256;
+    ether_frame[13] = ETH_P_IPV6 % 256;
+
+    // Next is ethernet frame data (IPv6 header + TCP header).
+
+    // IPv6 header
+    memcpy (ether_frame + ETH_HDRLEN, &iphdr, IP6_HDRLEN * sizeof (uint8_t));
+    // TCP header
+    memcpy (ether_frame + ETH_HDRLEN + IP6_HDRLEN, &tcphdr, TCP_HDRLEN * sizeof (uint8_t));
+    
     // creating the raw socket
-    raw_socket = socket(AF_INET6, SOCK_RAW, IPPROTO_TCP);
+    raw_socket = socket(PF_PACKET, SOCK_RAW, htons (ETH_P_ALL));
     if(raw_socket < 0){
         fprintf(stderr, "Failed to create the socket\n");
         exit(INTERNAL_ERROR);
     }
 
-    // we need to tell kernel that headers are included in the packet
-    int one = 1;
-    const int *val = &one;
-    if(setsockopt(raw_socket, IPPROTO_IPV6, IPV6_HDRINCL, val, sizeof(one)) < 0){
-        fprintf(stderr, "Error setting IP_HDRINCL %d\n", errno);
+    // compile the filter expression
+    if(pcap_compile(handle, &fp, filter_exp.c_str(), 0, net) == -1){
+        fprintf(stderr, "Could't parse filter %s: %s\n", filter_exp.c_str(), pcap_geterr(handle));
         exit(INTERNAL_ERROR);
     }
 
-    // send TCP packet
-    unsigned short int packet_len = sizeof(struct ipv6_header) + sizeof(struct tcphdr);
-    if(sendto(raw_socket, buffer, packet_len, 0, (struct sockaddr*)&din, sizeof(din)) == -1){
-        fprintf(stderr, "Failed to send : %d\n", errno);
+    // apply the filter expression
+    if(pcap_setfilter(handle, &fp) == -1){
+        fprintf(stderr, "Couldn't install filter %s: %s\n", filter_exp.c_str(), error_buffer);
         exit(INTERNAL_ERROR);
     }
 
-    // clean all
+    alarm(3);
+    std::signal(SIGALRM, alarm_handler);
+
+    // Send ethernet frame to socket.
+    if ((bytes = sendto (sd, ether_frame, frame_length, 0, (struct sockaddr *) &device, sizeof (device))) <= 0) {
+        perror ("sendto() failed");
+        exit (EXIT_FAILURE);
+    }
+
+    // loop
+    packet = pcap_next(handle, &packet_header);
+    alarm(0);
+    if(packet == NULL){ // no answer, try again
+        alarm(3);
+        std::signal(SIGALRM, alarm_handler);
+
+        // Send ethernet frame to socket.
+        if ((bytes = sendto (sd, ether_frame, frame_length, 0, (struct sockaddr *) &device, sizeof (device))) <= 0) {
+            perror ("sendto() failed");
+            exit (EXIT_FAILURE);
+        }
+
+        // try to catch it again
+        packet = pcap_next(handle, &packet_header);
+        alarm(0);
+        if(packet == NULL){
+            std::cout << order_num << "/tcp\tfiltered" << std::endl;
+        }
+        else{
+            ip_header = packet + ethernet_header_length;
+            ip_header_length = ((*ip_header) & 0x0F);
+            ip_header_length = ip_header_length * 4;
+
+            tcp_header = (struct tcphdr*) (packet + ethernet_header_length + ip_header_length);
+            if(tcp_header->rst == 1 && tcp_header->ack == 1){
+                std::cout << order_num << "/tcp\tclosed" << std::endl;
+            }
+            else if(tcp_header->rst == 0 && tcp_header->ack == 1){
+                std::cout << order_num << "/tcp\topen" << std::endl;
+            }
+        }
+    }
+    else{
+        ip_header = packet + ethernet_header_length;
+        ip_header_length = ((*ip_header) & 0x0F);
+        ip_header_length = ip_header_length * 4;
+
+        tcp_header = (struct tcphdr*) (packet + ethernet_header_length + ip_header_length);
+        if(tcp_header->rst == 1 && tcp_header->ack == 1){
+            std::cout << order_num << "/tcp\tclosed" << std::endl;
+        }
+        else if(tcp_header->rst == 0 && tcp_header->ack == 1){
+            std::cout << order_num << "/tcp\topen" << std::endl;
+        }
+    }
+
+    // close socket
+    pcap_freecode(&fp);
+    pcap_close(handle);
     close(raw_socket);
 
-    std::cout << order_num << "/udp\t" << std::endl;
+    // Free allocated memory.
+    free (src_mac);
+    free (dst_mac);
+    free (ether_frame);
+    free (interface);
+    free (target);
+    free (src_ip);
+    free (dst_ip);
+    free (tcp_flags);
+
 }
 
 /**
@@ -786,7 +1002,6 @@ void TCP_IPv4(int order_num, struct Ports real_ports){
         }
     }
     else{
-        struct ether_header *eth_header = (struct ether_header *) packet;
         ip_header = packet + ethernet_header_length;
         ip_header_length = ((*ip_header) & 0x0F);
         ip_header_length = ip_header_length * 4;
@@ -810,12 +1025,248 @@ void TCP_IPv4(int order_num, struct Ports real_ports){
 }
 
 /**
- * 
+ * http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
+ * Súbor: udp6_ll.c
  */
 void UDP_IPv6(int order_num, struct Ports real_ports){
-    char buffer[BUFSIZ];
-    const size_t len = sizeof(struct ipv6_header) + sizeof(struct udphdr);
-    struct ipv6_header *ip = (struct ipv6_header*) (buffer);
+
+    int status, datalen, frame_length, sd, bytes, raw_socket;
+    char *interface, *target, *src_ip, *dst_ip;
+    struct ip6_hdr iphdr;
+    struct udphdr udphdr;
+    uint8_t *data, *src_mac, *dst_mac, *ether_frame;
+    struct addrinfo hints, *res;
+    struct sockaddr_in6 *ipv6;
+    struct sockaddr_ll device;
+    struct ifreq ifr;
+    void *tmp;
+    bpf_u_int32 mask;
+    bpf_u_int32 net;
+    struct bpf_program fp;
+    const u_char *packet;
+    struct pcap_pkthdr packet_header;
+    std::string filter_exp;
+    char error_buffer[PCAP_ERRBUF_SIZE];
+
+    // preparing the filter string
+    filter_exp = "icmp and dst host " + real_ports.source_ip + " and src host " + real_ports.dest_ip;
+
+    // get network number and mask
+    if(pcap_lookupnet(real_ports.interface.c_str(), &net, &mask, error_buffer) == -1){
+        fprintf(stderr, "Couldn't get netmask for device %s : %s\n", real_ports.interface.c_str(), error_buffer);
+        net = 0;
+        mask = 0;
+    }
+
+    // open handle for given interface, non-promiscuous mode, timeout 2.5 seconds
+    handle = pcap_open_live(real_ports.interface.c_str(), SNAP_LEN, 0, 2500, error_buffer);
+    if(handle == NULL){
+        fprintf(stderr, "Couldn't open device %s\n: %s\n", real_ports.interface.c_str(), error_buffer);
+        exit(INTERNAL_ERROR);
+    }
+
+    // make sure to capte on an Ethernet device
+    if(pcap_datalink(handle) != DLT_EN10MB){
+        fprintf(stderr, "%s is not an Ethernet\n", real_ports.interface.c_str());
+        exit(INTERNAL_ERROR);
+    }
+
+    // Allocate memory for various arrays.
+    src_mac = allocate_ustrmem (6);
+    dst_mac = allocate_ustrmem (6);
+    data = allocate_ustrmem (IP_MAXPACKET);
+    ether_frame = allocate_ustrmem (IP_MAXPACKET);
+    interface = allocate_strmem (40);
+    target = allocate_strmem (INET6_ADDRSTRLEN);
+    src_ip = allocate_strmem (INET6_ADDRSTRLEN);
+    dst_ip = allocate_strmem (INET6_ADDRSTRLEN);
+
+    strcpy(interface, real_ports.interface.c_str());
+
+    // Submit request for a socket descriptor to look up interface.
+    if ((sd = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
+        perror ("socket() failed to get socket descriptor for using ioctl() ");
+        exit(INTERNAL_ERROR);
+    }
+
+    // Use ioctl() to look up interface name and get its MAC address.
+    memset (&ifr, 0, sizeof (ifr));
+    snprintf (ifr.ifr_name, sizeof (ifr.ifr_name), "%s", interface);
+    if (ioctl (sd, SIOCGIFHWADDR, &ifr) < 0) {
+        perror ("ioctl() failed to get source MAC address ");
+        exit(INTERNAL_ERROR);
+    }
+    close (sd);
+
+    // Copy source MAC address.
+    memcpy (src_mac, ifr.ifr_hwaddr.sa_data, 6 * sizeof (uint8_t));
+
+    // Find interface index from interface name and store index in
+    // struct sockaddr_ll device, which will be used as an argument of sendto().
+    memset (&device, 0, sizeof (device));
+    if ((device.sll_ifindex = if_nametoindex (interface)) == 0) {
+        perror ("if_nametoindex() failed to obtain interface index ");
+        exit (INTERNAL_ERROR);
+    }
+
+    // Set destination MAC address: you need to fill these out
+    dst_mac[0] = 0xff;
+    dst_mac[1] = 0xff;
+    dst_mac[2] = 0xff;
+    dst_mac[3] = 0xff;
+    dst_mac[4] = 0xff;
+    dst_mac[5] = 0xff;
+
+    // Source IPv6 address: you need to fill this out
+    strcpy (src_ip, real_ports.source_ip.c_str());
+
+    // Destination URL or IPv6 address: you need to fill this out
+    strcpy (target, real_ports.domain_name.c_str());
+
+    // Fill out hints for getaddrinfo().
+    memset (&hints, 0, sizeof (hints));
+    hints.ai_family = AF_INET6;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = hints.ai_flags | AI_CANONNAME;
+
+    // Resolve target using getaddrinfo().
+    if ((status = getaddrinfo (target, NULL, &hints, &res)) != 0) {
+        fprintf (stderr, "getaddrinfo() failed: %s\n", gai_strerror (status));
+        exit (EXIT_FAILURE);
+    }
+    ipv6 = (struct sockaddr_in6 *) res->ai_addr;
+    tmp = &(ipv6->sin6_addr);
+    if (inet_ntop (AF_INET6, tmp, dst_ip, INET6_ADDRSTRLEN) == NULL) {
+        status = errno;
+        fprintf (stderr, "inet_ntop() failed.\nError message: %s", strerror (status));
+        exit (EXIT_FAILURE);
+    }
+    freeaddrinfo (res);
+
+    // Fill out sockaddr_ll.
+    device.sll_family = AF_PACKET;
+    memcpy (device.sll_addr, src_mac, 6 * sizeof (uint8_t));
+    device.sll_halen = 6;
+
+    // UDP data
+    datalen = 4;
+    data[0] = 'T';
+    data[1] = 'e';
+    data[2] = 's';
+    data[3] = 't';
+
+    // IPv6 header
+    // IPv6 version (4 bits), Traffic class (8 bits), Flow label (20 bits)
+    iphdr.ip6_flow = htonl ((6 << 28) | (0 << 20) | 0);
+    // Payload length (16 bits): UDP header + UDP data
+    iphdr.ip6_plen = htons (UDP_HDRLEN + datalen);
+    // Next header (8 bits): 17 for UDP
+    iphdr.ip6_nxt = IPPROTO_UDP;
+    // Hop limit (8 bits): default to maximum value
+    iphdr.ip6_hops = 255;
+
+    // Source IPv6 address (128 bits)
+    if ((status = inet_pton (AF_INET6, src_ip, &(iphdr.ip6_src))) != 1) {
+        fprintf (stderr, "inet_pton() failed.\nError message: %s", strerror (status));
+        exit (EXIT_FAILURE);
+    }
+
+    // Destination IPv6 address (128 bits)
+    if ((status = inet_pton (AF_INET6, dst_ip, &(iphdr.ip6_dst))) != 1) {
+        fprintf (stderr, "inet_pton() failed.\nError message: %s", strerror (status));
+        exit (EXIT_FAILURE);
+    }
+
+    // UDP header
+    // Source port number (16 bits): pick a number
+    udphdr.source = htons (1234);
+    // Destination port number (16 bits): pick a number
+    udphdr.dest = htons (order_num);
+    // Length of UDP datagram (16 bits): UDP header + UDP data
+    udphdr.len = htons (UDP_HDRLEN + datalen);
+    // UDP checksum (16 bits)
+    udphdr.check = udp6_checksum (iphdr, udphdr, data, datalen);
+
+    // Fill out ethernet frame header.
+
+    // Ethernet frame length = ethernet header (MAC + MAC + ethernet type) + ethernet data (IP header + UDP header + UDP data)
+    frame_length = 6 + 6 + 2 + IP6_HDRLEN + UDP_HDRLEN + datalen;
+
+    // Destination and Source MAC addresses
+    memcpy (ether_frame, dst_mac, 6 * sizeof (uint8_t));
+    memcpy (ether_frame + 6, src_mac, 6 * sizeof (uint8_t));
+
+    // Next is ethernet type code (ETH_P_IPV6 for IPv6).
+    // http://www.iana.org/assignments/ethernet-numbers
+    ether_frame[12] = ETH_P_IPV6 / 256;
+    ether_frame[13] = ETH_P_IPV6 % 256;
+
+    // Next is ethernet frame data (IPv6 header + UDP header + UDP data).
+
+    // IPv6 header
+    memcpy (ether_frame + ETH_HDRLEN, &iphdr, IP6_HDRLEN * sizeof (uint8_t));
+
+    // UDP header
+    memcpy (ether_frame + ETH_HDRLEN + IP6_HDRLEN, &udphdr, UDP_HDRLEN * sizeof (uint8_t));
+
+    // UDP data
+    memcpy (ether_frame + ETH_HDRLEN + IP6_HDRLEN + UDP_HDRLEN, data, datalen * sizeof (uint8_t));
+
+
+    // compile the filter expression
+    if(pcap_compile(handle, &fp, filter_exp.c_str(), 0, net) == -1){
+        fprintf(stderr, "Could't parse filter %s: %s\n", filter_exp.c_str(), pcap_geterr(handle));
+        exit(INTERNAL_ERROR);
+    }
+
+    // apply the filter expression
+    if(pcap_setfilter(handle, &fp) == -1){
+        fprintf(stderr, "Couldn't install filter %s: %s\n", filter_exp.c_str(), error_buffer);
+        exit(INTERNAL_ERROR);
+    }
+
+    // Submit request for a raw socket descriptor.
+    if ((raw_socket = socket (PF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
+        perror ("socket() failed ");
+        exit (EXIT_FAILURE);
+    }
+
+    // alarm
+    alarm(3);
+    std::signal(SIGALRM, alarm_handler);
+
+    // Send ethernet frame to socket.
+    if ((bytes = sendto (raw_socket, ether_frame, frame_length, 0, (struct sockaddr *) &device, sizeof (device))) <= 0) {
+        perror ("sendto() failed");
+        exit (EXIT_FAILURE);
+    }
+
+    // loop
+    packet = pcap_next(handle, &packet_header);
+    if(packet == NULL){
+        //printf("I don't have it\n");
+        std::cout << order_num << "/udp\topen" << std::endl;
+    }
+    else{
+        alarm(0);
+        std::cout << order_num << "/udp\tclosed" << std::endl;
+    }
+
+    // close socket
+    pcap_freecode(&fp);
+    pcap_close(handle);
+    close(raw_socket);
+
+    // Free allocated memory.
+    free (src_mac);
+    free (dst_mac);
+    free (data);
+    free (ether_frame);
+    free (interface);
+    free (target);
+    free (src_ip);
+    free (dst_ip);
+
 }
 
 /**
@@ -1087,7 +1538,7 @@ int main(int argc, char *argv[]){
     arguments.parse(argc, argv);
 
     // write header if you can
-    if(arguments.pt_tcp_flag != false || arguments.pu_udp_flag){
+    if(arguments.pt_tcp_flag != false || arguments.pu_udp_flag != false){
         write_domain_header(arguments.domain_name, arguments.ip_address);
     }
     else{
@@ -1104,4 +1555,290 @@ int main(int argc, char *argv[]){
     }
     
     exit(OK);
+}
+
+/**
+ * http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
+ * Súbor: tcp6_ll.c 
+ */
+uint16_t
+checksum (uint16_t *addr, int len)
+{
+  int count = len;
+  uint32_t sum = 0;
+  uint16_t answer = 0;
+
+  // Sum up 2-byte values until none or only one byte left.
+  while (count > 1) {
+    sum += *(addr++);
+    count -= 2;
+  }
+
+  // Add left-over byte, if any.
+  if (count > 0) {
+    sum += *(uint8_t *) addr;
+  }
+
+  // Fold 32-bit sum into 16 bits; we lose information by doing this,
+  // increasing the chances of a collision.
+  // sum = (lower 16 bits) + (upper 16 bits shifted right 16 bits)
+  while (sum >> 16) {
+    sum = (sum & 0xffff) + (sum >> 16);
+  }
+
+  // Checksum is one's compliment of sum.
+  answer = ~sum;
+
+  return (answer);
+}
+
+/**
+ * http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
+ * Súbor: tcp6_ll.c 
+ */
+
+// Allocate memory for an array of chars.
+char *
+allocate_strmem (int len)
+{
+  char *tmp;
+
+  if (len <= 0) {
+    fprintf (stderr, "ERROR: Cannot allocate memory because len = %i in allocate_strmem().\n", len);
+    exit (EXIT_FAILURE);
+  }
+
+  tmp = (char *) malloc (len * sizeof (char));
+  if (tmp != NULL) {
+    memset (tmp, 0, len * sizeof (char));
+    return (tmp);
+  } else {
+    fprintf (stderr, "ERROR: Cannot allocate memory for array allocate_strmem().\n");
+    exit (EXIT_FAILURE);
+  }
+}
+
+/**
+ * http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
+ * Súbor: tcp6_ll.c 
+ */
+
+// Allocate memory for an array of unsigned chars.
+uint8_t *
+allocate_ustrmem (int len)
+{
+  uint8_t *tmp;
+
+  if (len <= 0) {
+    fprintf (stderr, "ERROR: Cannot allocate memory because len = %i in allocate_ustrmem().\n", len);
+    exit (EXIT_FAILURE);
+  }
+
+  tmp = (uint8_t *) malloc (len * sizeof (uint8_t));
+  if (tmp != NULL) {
+    memset (tmp, 0, len * sizeof (uint8_t));
+    return (tmp);
+  } else {
+    fprintf (stderr, "ERROR: Cannot allocate memory for array allocate_ustrmem().\n");
+    exit (EXIT_FAILURE);
+  }
+}
+
+/**
+ * http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
+ * Súbor: tcp6_ll.c 
+ */
+
+// Allocate memory for an array of ints.
+int *
+allocate_intmem (int len)
+{
+  int* tmp;
+
+  if (len <= 0) {
+    fprintf (stderr, "ERROR: Cannot allocate memory because len = %i in allocate_intmem().\n", len);
+    exit (EXIT_FAILURE);
+  }
+
+  tmp = (int *) malloc (len * sizeof (int));
+  if (tmp != NULL) {
+    memset (tmp, 0, len * sizeof (int));
+    return (tmp);
+  } else {
+    fprintf (stderr, "ERROR: Cannot allocate memory for array allocate_intmem().\n");
+    exit (EXIT_FAILURE);
+  }
+}
+
+/**
+ * http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
+ * Súbor: tcp6_ll.c 
+ */
+
+// Build IPv6 TCP pseudo-header and call checksum function (Section 8.1 of RFC 2460).
+uint16_t
+tcp6_checksum (struct ip6_hdr iphdr, struct tcphdr tcphdr)
+{
+  uint32_t lvalue;
+  char buf[IP_MAXPACKET], cvalue;
+  char *ptr;
+  int chksumlen = 0;
+
+  ptr = &buf[0];  // ptr points to beginning of buffer buf
+
+  // Copy source IP address into buf (128 bits)
+  memcpy (ptr, &iphdr.ip6_src, sizeof (iphdr.ip6_src));
+  ptr += sizeof (iphdr.ip6_src);
+  chksumlen += sizeof (iphdr.ip6_src);
+
+  // Copy destination IP address into buf (128 bits)
+  memcpy (ptr, &iphdr.ip6_dst, sizeof (iphdr.ip6_dst));
+  ptr += sizeof (iphdr.ip6_dst);
+  chksumlen += sizeof (iphdr.ip6_dst);
+
+  // Copy TCP length to buf (32 bits)
+  lvalue = htonl (sizeof (tcphdr));
+  memcpy (ptr, &lvalue, sizeof (lvalue));
+  ptr += sizeof (lvalue);
+  chksumlen += sizeof (lvalue);
+
+  // Copy zero field to buf (24 bits)
+  *ptr = 0; ptr++;
+  *ptr = 0; ptr++;
+  *ptr = 0; ptr++;
+  chksumlen += 3;
+
+  // Copy next header field to buf (8 bits)
+  memcpy (ptr, &iphdr.ip6_nxt, sizeof (iphdr.ip6_nxt));
+  ptr += sizeof (iphdr.ip6_nxt);
+  chksumlen += sizeof (iphdr.ip6_nxt);
+
+  // Copy TCP source port to buf (16 bits)
+  memcpy (ptr, &tcphdr.th_sport, sizeof (tcphdr.th_sport));
+  ptr += sizeof (tcphdr.th_sport);
+  chksumlen += sizeof (tcphdr.th_sport);
+
+  // Copy TCP destination port to buf (16 bits)
+  memcpy (ptr, &tcphdr.th_dport, sizeof (tcphdr.th_dport));
+  ptr += sizeof (tcphdr.th_dport);
+  chksumlen += sizeof (tcphdr.th_dport);
+
+  // Copy sequence number to buf (32 bits)
+  memcpy (ptr, &tcphdr.th_seq, sizeof (tcphdr.th_seq));
+  ptr += sizeof (tcphdr.th_seq);
+  chksumlen += sizeof (tcphdr.th_seq);
+
+  // Copy acknowledgement number to buf (32 bits)
+  memcpy (ptr, &tcphdr.th_ack, sizeof (tcphdr.th_ack));
+  ptr += sizeof (tcphdr.th_ack);
+  chksumlen += sizeof (tcphdr.th_ack);
+
+  // Copy data offset to buf (4 bits) and
+  // copy reserved bits to buf (4 bits)
+  cvalue = (tcphdr.th_off << 4) + tcphdr.th_x2;
+  memcpy (ptr, &cvalue, sizeof (cvalue));
+  ptr += sizeof (cvalue);
+  chksumlen += sizeof (cvalue);
+
+  // Copy TCP flags to buf (8 bits)
+  memcpy (ptr, &tcphdr.th_flags, sizeof (tcphdr.th_flags));
+  ptr += sizeof (tcphdr.th_flags);
+  chksumlen += sizeof (tcphdr.th_flags);
+
+  // Copy TCP window size to buf (16 bits)
+  memcpy (ptr, &tcphdr.th_win, sizeof (tcphdr.th_win));
+  ptr += sizeof (tcphdr.th_win);
+  chksumlen += sizeof (tcphdr.th_win);
+
+  // Copy TCP checksum to buf (16 bits)
+  // Zero, since we don't know it yet
+  *ptr = 0; ptr++;
+  *ptr = 0; ptr++;
+  chksumlen += 2;
+
+  // Copy urgent pointer to buf (16 bits)
+  memcpy (ptr, &tcphdr.th_urp, sizeof (tcphdr.th_urp));
+  ptr += sizeof (tcphdr.th_urp);
+  chksumlen += sizeof (tcphdr.th_urp);
+
+  return checksum ((uint16_t *) buf, chksumlen);
+}
+
+
+/**
+ * http://www.pdbuchan.com/rawsock/rawsock.html?fbclid=IwAR2wUpdaHEzMfMwFQ6uC-3dlZZ7LDDY6YMkG8dEY-9NqrudMO9K7YTFEZnk
+ * Súbor: tcp6_ll.c 
+ */
+
+// Build IPv6 UDP pseudo-header and call checksum function (Section 8.1 of RFC 2460).
+uint16_t
+udp6_checksum (struct ip6_hdr iphdr, struct udphdr udphdr, uint8_t *payload, int payloadlen)
+{
+  char buf[IP_MAXPACKET];
+  char *ptr;
+  int chksumlen = 0;
+  int i;
+
+  ptr = &buf[0];  // ptr points to beginning of buffer buf
+
+  // Copy source IP address into buf (128 bits)
+  memcpy (ptr, &iphdr.ip6_src.s6_addr, sizeof (iphdr.ip6_src.s6_addr));
+  ptr += sizeof (iphdr.ip6_src.s6_addr);
+  chksumlen += sizeof (iphdr.ip6_src.s6_addr);
+
+  // Copy destination IP address into buf (128 bits)
+  memcpy (ptr, &iphdr.ip6_dst.s6_addr, sizeof (iphdr.ip6_dst.s6_addr));
+  ptr += sizeof (iphdr.ip6_dst.s6_addr);
+  chksumlen += sizeof (iphdr.ip6_dst.s6_addr);
+
+  // Copy UDP length into buf (32 bits)
+  memcpy (ptr, &udphdr.len, sizeof (udphdr.len));
+  ptr += sizeof (udphdr.len);
+  chksumlen += sizeof (udphdr.len);
+
+  // Copy zero field to buf (24 bits)
+  *ptr = 0; ptr++;
+  *ptr = 0; ptr++;
+  *ptr = 0; ptr++;
+  chksumlen += 3;
+
+  // Copy next header field to buf (8 bits)
+  memcpy (ptr, &iphdr.ip6_nxt, sizeof (iphdr.ip6_nxt));
+  ptr += sizeof (iphdr.ip6_nxt);
+  chksumlen += sizeof (iphdr.ip6_nxt);
+
+  // Copy UDP source port to buf (16 bits)
+  memcpy (ptr, &udphdr.source, sizeof (udphdr.source));
+  ptr += sizeof (udphdr.source);
+  chksumlen += sizeof (udphdr.source);
+
+  // Copy UDP destination port to buf (16 bits)
+  memcpy (ptr, &udphdr.dest, sizeof (udphdr.dest));
+  ptr += sizeof (udphdr.dest);
+  chksumlen += sizeof (udphdr.dest);
+
+  // Copy UDP length again to buf (16 bits)
+  memcpy (ptr, &udphdr.len, sizeof (udphdr.len));
+  ptr += sizeof (udphdr.len);
+  chksumlen += sizeof (udphdr.len);
+
+  // Copy UDP checksum to buf (16 bits)
+  // Zero, since we don't know it yet
+  *ptr = 0; ptr++;
+  *ptr = 0; ptr++;
+  chksumlen += 2;
+
+  // Copy payload to buf
+  memcpy (ptr, payload, payloadlen * sizeof (uint8_t));
+  ptr += payloadlen;
+  chksumlen += payloadlen;
+
+  // Pad to the next 16-bit boundary
+  for (i=0; i<payloadlen%2; i++, ptr++) {
+    *ptr = 0;
+    ptr++;
+    chksumlen++;
+  }
+
+  return checksum ((uint16_t *) buf, chksumlen);
 }
